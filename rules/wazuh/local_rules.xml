@@ -120,7 +120,9 @@
        Both require a 100121 alert for the same ipAddress in the last 180s.
        ============================================================= -->
   <rule id="100122" level="13" timeframe="180">
-    <if_sid>60106</if_sid>
+    <!-- CI finding (Wazuh 4.9.2): built-in children of 60106 are evaluated in LOAD order, not by level, so
+         92651 -> 92653 (RDP logon, lvl 3) captured the event. Attach under 92653 too. -->
+    <if_sid>60106, 92653</if_sid>
     <if_matched_sid>100121</if_matched_sid>
     <same_field>win.eventdata.ipAddress</same_field>
     <field name="win.system.eventID">^4624$</field>
@@ -134,7 +136,8 @@
   </rule>
 
   <rule id="100123" level="13" timeframe="180">
-    <if_sid>60106</if_sid>
+    <!-- CI finding: 92651 -> 92652 (NTLM remote logon, lvl 6) captured the event. Attach under 92652 too. -->
+    <if_sid>60106, 92652</if_sid>
     <if_matched_sid>100121</if_matched_sid>
     <same_field>win.eventdata.ipAddress</same_field>
     <field name="win.system.eventID">^4624$</field>
@@ -244,7 +247,9 @@
        filter EID 3 heavily - see docs/SETUP.md.
        ============================================================= -->
   <rule id="100170" level="3">
-    <if_sid>61605</if_sid>
+    <!-- CI finding: some EID 3 events end on built-in sysmon_id_3 rules (e.g. 92105 -> 92106, SMB), so the counter
+         missed them. Attach under 61605 and every built-in EID 3 rule (0810-sysmon_id_3.xml, 4.9.2). -->
+    <if_sid>61605, 92101, 92102, 92103, 92104, 92105, 92106, 92107, 92108, 92109, 92110</if_sid>
     <description>Sysmon network connection (EventID 3)</description>
     <options>no_full_log</options>
     <group>network,sysmon,</group>
