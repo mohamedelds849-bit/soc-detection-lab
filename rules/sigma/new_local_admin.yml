@@ -1,24 +1,88 @@
-title: New Local Account Added To Administrators
-id: 7a1e0c10-0004-4a00-9a04-newadmin00004
+title: Windows Local User Account Created (base event)
+id: 3989d7be-f0cd-4c08-9abd-091748a4d999
+name: lab_win_local_user_created
 status: experimental
-description: Detects a local account being added to the Administrators group (EventID 4732). Correlate with account creation (4720) for new-admin persistence.
+description: A user account was created (EventID 4720). Base rule for the temporal correlation below.
 references:
-  - https://attack.mitre.org/techniques/T1136/001/
+  - https://learn.microsoft.com/en-us/previous-versions/windows/it-pro/windows-10/security/threat-protection/auditing/event-4720
+author: Mohamed Elansari
+date: 2026-03-10
+logsource:
+  product: windows
+  service: security
+detection:
+  selection:
+    EventID: 4720
+  condition: selection
+fields:
+  - TargetUserName
+  - TargetSid
+  - SubjectUserName
+falsepositives:
+  - Authorized IT onboarding
+level: low
+tags:
+  - attack.persistence
+  - attack.t1136.001
+---
+title: Member Added To Local Administrators Group
+id: 9cc923d0-2acb-449d-a322-94145216fb55
+name: lab_win_member_added_to_admins
+status: experimental
+description: >
+  A member was added to the local Administrators group (EventID 4732). In 4732, TargetUserName/TargetSid
+  identify the GROUP and MemberSid/MemberName identify the account added. Matching on the well-known SID
+  S-1-5-32-544 keeps the rule language-independent (the group is "Administrateurs" on French Windows).
+references:
+  - https://learn.microsoft.com/en-us/previous-versions/windows/it-pro/windows-10/security/threat-protection/auditing/event-4732
   - https://attack.mitre.org/techniques/T1098/
 author: Mohamed Elansari
-date: 2026/03/10
+date: 2026-03-10
 logsource:
   product: windows
   service: security
 detection:
   selection:
     EventID: 4732
-    GroupName: 'Administrators'
+    TargetSid: 'S-1-5-32-544'
   condition: selection
 fields:
+  - MemberSid
+  - MemberName
   - TargetUserName
   - SubjectUserName
-  - GroupName
+falsepositives:
+  - Authorized IT onboarding of a new administrator
+level: high
+tags:
+  - attack.persistence
+  - attack.privilege-escalation
+  - attack.t1098
+---
+title: New Local Account Created Then Added To Administrators
+id: 5dc2d5ed-48a0-4b1a-ba78-dcd7d4035211
+status: experimental
+description: >
+  Detects a newly created local account (4720) being added to the Administrators group (4732) within
+  2 minutes. The account SID is TargetSid in 4720 but MemberSid in 4732, so a Sigma v2 correlation
+  alias joins the two field names.
+references:
+  - https://attack.mitre.org/techniques/T1136/001/
+  - https://attack.mitre.org/techniques/T1098/
+author: Mohamed Elansari
+date: 2026-03-10
+correlation:
+  type: temporal_ordered
+  rules:
+    - lab_win_local_user_created
+    - lab_win_member_added_to_admins
+  aliases:
+    account_sid:
+      lab_win_local_user_created: TargetSid
+      lab_win_member_added_to_admins: MemberSid
+  group-by:
+    - account_sid
+  timespan: 2m
 falsepositives:
   - Authorized IT onboarding of a new administrator
 level: high

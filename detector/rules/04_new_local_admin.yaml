@@ -19,8 +19,10 @@ steps:
           equals: win_security
         - field: event_id
           equals: 4732
-        - field: GroupName
-          equals: Administrators
+        # 4732: TargetSid/TargetUserName = the GROUP, MemberSid = the account added.
+        # S-1-5-32-544 = BUILTIN\Administrators (language-independent).
+        - field: TargetSid
+          equals: S-1-5-32-544
     min_count: 1
 triage: >
   A local account was created (EventID 4720) and shortly after added to the

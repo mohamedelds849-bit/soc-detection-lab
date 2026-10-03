@@ -1,23 +1,22 @@
-title: Scheduled Task Creation
-id: 7a1e0c10-0006-4a00-9a06-schtask000006
+title: Scheduled Task Created (Security 4698)
+id: 17be10f5-1b7c-4913-927c-ec574df0579a
 status: experimental
-description: Detects scheduled task creation via the Security log (EventID 4698) or schtasks.exe process creation, a common persistence mechanism.
+description: >
+  Detects scheduled task creation via the Security log (EventID 4698), a common persistence mechanism.
+  Requires the audit subcategory "Other Object Access Events" (Success), which is NOT enabled by default.
 references:
   - https://attack.mitre.org/techniques/T1053/005/
 author: Mohamed Elansari
-date: 2026/03/10
+date: 2026-03-10
 logsource:
   product: windows
+  service: security
 detection:
-  selection_evt:
+  selection:
     EventID: 4698
-  selection_proc:
-    Image|endswith: '\schtasks.exe'
-    CommandLine|contains: '/create'
-  condition: selection_evt or selection_proc
+  condition: selection
 fields:
   - TaskName
-  - CommandLine
   - SubjectUserName
 falsepositives:
   - Software installers creating update tasks
@@ -25,4 +24,34 @@ falsepositives:
 level: medium
 tags:
   - attack.persistence
+  - attack.execution
+  - attack.t1053.005
+---
+title: Scheduled Task Created Via Schtasks.exe
+id: 77520316-6873-471b-a0e6-e4c7266a4fd7
+status: experimental
+description: Detects schtasks.exe /create process creation (Sysmon EventID 1), a common persistence mechanism.
+references:
+  - https://attack.mitre.org/techniques/T1053/005/
+author: Mohamed Elansari
+date: 2026-03-10
+logsource:
+  product: windows
+  category: process_creation
+detection:
+  selection:
+    Image|endswith: '\schtasks.exe'
+    CommandLine|contains: '/create'
+  condition: selection
+fields:
+  - CommandLine
+  - ParentImage
+  - User
+falsepositives:
+  - Software installers creating update tasks
+  - Administrator-created maintenance tasks
+level: medium
+tags:
+  - attack.persistence
+  - attack.execution
   - attack.t1053.005

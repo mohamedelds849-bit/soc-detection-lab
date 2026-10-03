@@ -1,6 +1,6 @@
 id: defender_disabled
 name: Microsoft Defender real-time protection disabled
-attack: T1562.001
+attack: T1685 (ex-T1562.001)
 severity: critical
 type: single
 entity_field: host

@@ -64,12 +64,19 @@ Journal **Windows Security** natif utilisé :
 | **4624** | Connexion réussie |
 | **4625** | Échec de connexion |
 | **4720** | Création d'un compte utilisateur local |
-| **4732** | Membre ajouté à un groupe local (ex. Administrators) |
-| **4698** | Création d'une tâche planifiée |
+| **4732** | Membre ajouté à un groupe local de sécurité (ex. Administrators). Attention : `TargetUserName`/`TargetSid` = le **groupe**, `MemberSid` = le compte ajouté |
+| **4698** | Création d'une tâche planifiée (nécessite l'audit « Other Object Access Events », désactivé par défaut) |
+| 5001 (Defender/Operational) | Protection en temps réel de Defender désactivée |
 | **1102** | Journal d'audit de sécurité effacé |
 
 **LogonType** utiles : 2 (interactif), 3 (réseau), 10 (RemoteInteractive/RDP),
-7 (déverrouillage).
+7 (déverrouillage). Piège classique : avec **NLA** (défaut), un **échec** RDP est
+journalisé en 4625 **LogonType 3** (l'authentification se fait avant la session),
+tandis que la connexion réussie apparaît en 4624 LogonType 10.
+
+**Statut 4625** : `Status 0xC000006D` + `SubStatus 0xC000006A` = mauvais mot de
+passe ; `SubStatus 0xC0000064` = compte inexistant (signe de pulvérisation /
+énumération de comptes).
 
 ---
 
@@ -172,8 +179,9 @@ local. La séquence 4720 → 4732 (Administrators) signale un nouveau compte
 administrateur (persistance/élévation).
 
 **Q10. Pourquoi l'effacement du journal (1102) est-il critique ?**
-C'est une action **anti-forensique** (T1070.001) : l'attaquant tente d'effacer ses
-traces. D'où l'intérêt d'**exporter les logs en temps réel** vers le SIEM.
+C'est une action **anti-forensique** (T1685.005 *Clear Windows Event Logs* depuis
+ATT&CK v19 ; anciennement T1070.001) : l'attaquant tente d'effacer ses traces.
+Effacer un autre journal que Security produit l'EventID **104** (journal System). D'où l'intérêt d'**exporter les logs en temps réel** vers le SIEM.
 
 **Q11. Comment détecter un PowerShell malveillant ?**
 Surveiller les lignes de commande : `-EncodedCommand`, `-nop`, `IEX`,
@@ -189,25 +197,33 @@ Compter les **ports de destination distincts** contactés par une même source d
 une courte fenêtre (corrélation `distinct`). Exclure les scanners autorisés.
 
 **Q14. Qu'est-ce que la « defense evasion » ? Donnez deux exemples.**
-Tactique visant à éviter la détection : ex. **désactiver l'antivirus**
-(T1562.001), **effacer les journaux** (T1070.001). Les deux sont couverts ici en
-niveau critique/élevé.
+Tactique visant à éviter la détection : ex. **désactiver l'antivirus**,
+**effacer les journaux**. Les deux sont couverts ici en niveau critique/élevé.
+Point d'actualité à connaître en entretien : **ATT&CK v19 (avril 2026)** a scindé
+Defense Evasion (TA0005) en **Stealth** (TA0005) et **Defense Impairment**
+(TA0112) ; T1562.001 est devenu **T1685** (*Disable or Modify Tools*) et
+T1070.001 est devenu **T1685.005**. Beaucoup d'outils (dont la base MITRE
+intégrée à Wazuh 4.x) utilisent encore les anciens identifiants.
 
 **Q15. Comment valider qu'une règle de détection est bonne ?**
 Elle doit (1) se déclencher sur l'attaque ciblée (vrai positif), (2) rester
 silencieuse sur l'activité normale (pas de FP), (3) être mappée ATT&CK, (4) être
 **testable** et reproductible. Ce lab le fait via `pytest` : 11/11 détections,
-0 FP sur la base bénigne.
+0 FP sur la base bénigne. **Limite à dire honnêtement :** la base bénigne vient du
+même générateur que les attaques ; il faut aussi tester des **variantes** de
+l'attaque (ex. `-e`/`-ec` au lieu de `-EncodedCommand`, test ajouté) et rejouer
+la règle sur de vrais journaux avant de la déclarer fiable.
 
 ---
 
 ## 8. Ligne de CV (honnête)
 
 > **Projet — SOC Detection Lab (detection engineering, défensif).** Conception de
-> 11 détections mappées MITRE ATT&CK au format **Wazuh (XML)** et **Sigma (YAML)**,
-> et développement d'un **moteur de détection Python offline** (corrélation par
-> seuil / valeurs distinctes / séquence) exécuté sur des **journaux synthétiques**
-> (Linux, Windows Security, Sysmon, Apache) — **11/11 détections validées, 0 faux
-> positif** sur la base bénigne, **30 tests pytest**. *Moteur et règles réalisés ;
+> 11 détections mappées MITRE ATT&CK au format **Wazuh (XML)** et **Sigma (YAML,
+> validées par `sigma check`)**, et développement d'un **moteur de détection Python
+> offline** (corrélation par seuil / valeurs distinctes / séquence) exécuté sur des
+> **journaux synthétiques** (Linux, Windows Security, Sysmon, Apache) — **11/11
+> détections déclenchées, 0 faux positif** sur la base bénigne synthétique,
+> **31 tests pytest**. *Moteur et règles réalisés ;
 > le déploiement Wazuh (manager/indexer/dashboard + agent + Sysmon) est documenté
 > pour un déploiement personnel sur ma machine.*

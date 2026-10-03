@@ -1,24 +1,46 @@
-title: Successful Login After Many Failures
-id: 7a1e0c10-0003-4a00-9a03-successafter03
+title: SSH Accepted Password (base event)
+id: 9b6e2dd3-a737-4d0c-9242-e7bc85f6c4b0
+name: lab_ssh_accepted_password
 status: experimental
-description: Detects a successful SSH login from a source IP that produced many failed logins just before, indicating likely credential compromise via brute force.
+description: Successful SSH password authentication. Base rule for the temporal correlation below; not alerted on its own.
 references:
   - https://attack.mitre.org/techniques/T1110/
 author: Mohamed Elansari
-date: 2026/03/10
+date: 2026-03-10
 logsource:
   product: linux
   service: sshd
 detection:
-  failures:
-    message|contains: 'Failed password for'
-  success:
+  selection:
     message|contains: 'Accepted password for'
-  timeframe: 3m
-  condition: failures | count() by src_ip >= 8 and success
+  condition: selection
 fields:
   - src_ip
   - user
+falsepositives:
+  - Every normal password login (expected)
+level: informational
+---
+title: Successful SSH Login After Brute Force
+id: feb47221-b0bc-4c06-84b4-e9b65fbe4759
+status: experimental
+description: >
+  Detects a successful SSH password login from a source IP that triggered the SSH brute-force
+  correlation (8+ failures / 2m) just before, within 3 minutes - likely credential compromise.
+  Chained Sigma v2 correlation: references lab_ssh_failed_password_burst defined in ssh_bruteforce.yml,
+  so convert both files together.
+references:
+  - https://attack.mitre.org/techniques/T1110/
+author: Mohamed Elansari
+date: 2026-03-10
+correlation:
+  type: temporal_ordered
+  rules:
+    - lab_ssh_failed_password_burst
+    - lab_ssh_accepted_password
+  group-by:
+    - src_ip
+  timespan: 3m
 falsepositives:
   - A legitimate user who mistyped several times then logged in
 level: critical

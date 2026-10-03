@@ -147,3 +147,25 @@ def test_match_operators():
     assert engine.match_condition(e, {"field": "command_line", "regex": "(?i)-enc"})
     assert engine.match_condition(e, {"field": "n", "in": [4, 5, 6]})
     assert not engine.match_condition(e, {"field": "n", "equals": 1})
+
+
+def test_encoded_powershell_realistic_variants(rules):
+    """Guard against over-fitting to the single synthetic sample: PowerShell
+    accepts abbreviations of -EncodedCommand, and -ExecutionPolicy must not match."""
+    rule = next(r for r in rules if r["id"] == "encoded_powershell")
+    ps = "C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe"
+
+    def ev(cmd, image=ps):
+        return [{"ts": 0.0, "source": "sysmon", "event_id": 1, "host": "h",
+                 "image": image, "command_line": cmd}]
+
+    for cmd in ("powershell.exe -nop -w hidden -e SQBFAFgA",
+                "powershell -ec SQBFAFgA",
+                "powershell -enc SQBFAFgA",
+                "powershell -EncodedCommand SQBFAFgA"):
+        assert len(engine.run_rule(rule, ev(cmd))) == 1, cmd
+    assert len(engine.run_rule(rule, ev(
+        "pwsh -EncodedCommand SQBFAFgA", "C:\Program Files\PowerShell\7\pwsh.exe"))) == 1
+    # benign look-alikes
+    assert engine.run_rule(rule, ev("powershell -ExecutionPolicy Bypass -File backup.ps1")) == []
+    assert engine.run_rule(rule, ev("powershell -Command Get-Content a.txt -Encoding UTF8")) == []

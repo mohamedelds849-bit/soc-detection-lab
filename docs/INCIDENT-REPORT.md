@@ -37,14 +37,15 @@ en jeu (exercice).
 |-------|------|-----------|--------------------|
 | 08:35:06 – 08:35:34 | lab-web01 | 14 échecs d'authentification SSH pour `mohamed` depuis `203.0.113.66` | SSH brute force (T1110) |
 | 08:36:00 | lab-web01 | **Connexion SSH réussie** pour `mohamed` depuis `203.0.113.66` | Succès après échecs multiples (T1110) |
-| 08:50:05 – 08:50:34 | LAB-WIN11 | 12 échecs de connexion RDP (`administrator`) depuis `198.51.100.77` | RDP brute force (T1110) |
+| 08:50:05 – 08:50:54 | LAB-WIN11 | 12 échecs de connexion RDP (`administrator`) depuis `198.51.100.77` | RDP brute force (T1110) |
+| 08:50:59 | LAB-WIN11 | **Connexion RDP réussie** (4624, LogonType 10) pour `administrator` depuis `198.51.100.77` | **Aucune règle** — trouvé en investigation (voir §9) |
 | 08:58:00 | LAB-WIN11 | Création du compte local `svc_helper` (4720) | Nouveau compte (T1136.001) |
 | 08:58:08 | LAB-WIN11 | `svc_helper` ajouté au groupe **Administrators** (4732) | Compte admin créé (T1098) |
 | 09:00:00 | LAB-WIN11 | PowerShell `-EncodedCommand` | PowerShell encodé (T1059.001) |
 | 09:01:00 | LAB-WIN11 | Tâche planifiée `\Updater` créée (4698 + schtasks.exe) | Tâche planifiée (T1053.005) |
-| 09:02:00 | LAB-WIN11 | **Journal de sécurité effacé** (1102) | Effacement de journaux (T1070.001) |
-| 09:03:08 | LAB-WIN11 | 21 ports distincts contactés depuis `203.0.113.90` | Scan de ports (T1046) |
-| 09:04:00 | LAB-WIN11 | `Set-MpPreference -DisableRealtimeMonitoring $true` | Defender désactivé (T1562.001) |
+| 09:02:00 | LAB-WIN11 | **Journal de sécurité effacé** (1102) | Effacement de journaux (T1685.005, ex-T1070.001) |
+| 09:03:00 – 09:03:10 | LAB-WIN11 | 21 ports distincts contactés depuis `203.0.113.90` | Scan de ports (T1046) |
+| 09:04:00 | LAB-WIN11 | `Set-MpPreference -DisableRealtimeMonitoring $true` | Defender désactivé (T1685, ex-T1562.001) |
 | 09:05:07 – 09:05:29 | lab-web01 | Requêtes web type web shell depuis `192.0.2.44` | Web shell (T1505.003) |
 | 09:06:00 | LAB-WIN11 | WINWORD.EXE lance `cmd.exe` → PowerShell | Office lance un shell (T1204.002) |
 
@@ -56,7 +57,7 @@ en jeu (exercice).
 
 **Adresses IP (plages de documentation RFC 5737 / privées)**
 - `203.0.113.66` — source de la force brute SSH + connexion réussie
-- `198.51.100.77` — source de la force brute RDP
+- `198.51.100.77` — source de la force brute RDP **puis connexion RDP réussie** sur `administrator`
 - `203.0.113.90` — source du scan de ports
 - `192.0.2.44` — source des requêtes web shell
 
@@ -81,8 +82,10 @@ en jeu (exercice).
 
 - **Hôtes concernés :** `lab-web01` (Linux, accès initial), `LAB-WIN11` (Windows,
   persistance + évasion).
-- **Comptes concernés :** `mohamed` (compromis par force brute), `svc_helper`
-  (créé par l'attaquant), tentatives sur `administrator` (RDP).
+- **Comptes concernés :** `mohamed` (compromis par force brute SSH),
+  `administrator` (**compromis** : connexion RDP réussie à 08:50:59 après 12
+  échecs — c'est ce compte qui crée `svc_helper` 7 minutes plus tard),
+  `svc_helper` (créé par l'attaquant).
 - **Vecteur d'entrée :** authentification par mot de passe exposée (SSH) sans
   limitation de débit / verrouillage, et RDP joignable.
 - **Pas d'exfiltration observée** dans les données du lab ; l'activité se limite à
@@ -96,9 +99,11 @@ Actions immédiates recommandées :
 1. **Bloquer** les IP sources au pare-feu : `203.0.113.66`, `198.51.100.77`,
    `203.0.113.90`, `192.0.2.44`.
 2. **Isoler** `LAB-WIN11` du réseau (persistance + Defender désactivé).
-3. **Désactiver** immédiatement le compte `svc_helper` et le compte `mohamed`
-   (réinitialisation de mot de passe forcée).
-4. **Couper** l'accès SSH/RDP depuis l'extérieur en attendant le durcissement.
+3. **Désactiver** immédiatement le compte `svc_helper` ; **réinitialiser** les
+   mots de passe de `mohamed` et `administrator` (tous deux compromis).
+4. **Préserver les preuves** avant éradication : export des journaux depuis
+   Wazuh, image mémoire/disque de `LAB-WIN11` si possible.
+5. **Couper** l'accès SSH/RDP depuis l'extérieur en attendant le durcissement.
 
 ---
 
@@ -136,7 +141,11 @@ Actions immédiates recommandées :
 - **Protéger les journaux :** transfert immédiat vers le SIEM (les journaux locaux
   ont été effacés — la centralisation Wazuh aurait préservé la preuve).
 - **Alerter sur la désactivation de l'EDR/AV :** une désactivation de Defender doit
-  être une alerte critique (c'est déjà le cas, règle T1562.001).
+  être une alerte critique (c'est déjà le cas, règle T1685 / ex-T1562.001). Vérifier
+  aussi si la commande a réellement abouti (Defender EventID 5001,
+  `Get-MpComputerStatus`) : avec Tamper Protection elle peut avoir été bloquée.
+- **Combler l'angle mort « succès RDP après force brute » :** ajouter une règle
+  séquence 4625×N → 4624 (LogonType 3/10) même IP, comme pour SSH.
 - **Principe du moindre privilège :** surveiller toute création de compte admin
   (déjà couvert, T1098/T1136).
 
@@ -144,8 +153,16 @@ Actions immédiates recommandées :
 
 ## 9. Couverture de détection
 
-Les 11 détections du lab ont correctement identifié chaque étape de ce scénario
-(voir `reports/triage.html`). Le point d'entrée (force brute → succès) a été relié
-à la persistance (compte admin, tâche planifiée) et à l'évasion (Defender, journal
-effacé), illustrant la valeur de la **corrélation** sur une simple détection
-unitaire.
+Les 11 détections du lab se sont déclenchées sur leur étape respective (voir
+`reports/triage.html`). **Une étape clé n'est couverte par aucune règle :** la
+connexion RDP réussie de `198.51.100.77` sur `administrator` (4624 LogonType 10,
+08:50:59), juste après la force brute. C'est très probablement le vrai vecteur
+d'accès à `LAB-WIN11` (la force brute SSH visait l'hôte Linux) ; elle a été
+retrouvée en investigation en pivotant sur l'IP source de l'alerte RDP. La règle
+« succès après échecs » n'existe aujourd'hui que pour SSH — c'est le premier
+point d'amélioration de la couverture.
+
+Remarque de méthode : l'ordre des évènements (Office → shell à 09:06, *après* la
+désactivation de Defender) est celui du jeu de données synthétique ; dans un
+scénario réel, un document piégé (T1204.002) serait plutôt un vecteur d'accès
+initial et devrait être analysé comme une seconde chaîne possible.

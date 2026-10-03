@@ -45,7 +45,7 @@
           <td><span class="sev" style="background:#b00020">CRITICAL</span></td>
           <td>2026-03-10 09:04:00Z</td>
           <td><b>Microsoft Defender real-time protection disabled</b><div class="triage">A command disabled Microsoft Defender real-time monitoring (Set-MpPreference -DisableRealtimeMonitoring $true). This is defense evasion and should almost never happen outside maintenance windows. Re-enable protection and investigate the account/host immediately.</div></td>
-          <td><code>T1562.001</code></td>
+          <td><code>T1685 (ex-T1562.001)</code></td>
           <td>sysmon</td>
           <td>LAB-WIN11</td>
           <td class="num">1</td>
@@ -79,7 +79,7 @@
           <td>win_security</td>
           <td>host=LAB-WIN11</td>
           <td class="num">2</td>
-          <td class="ev">{&quot;@timestamp&quot;: &quot;2026-03-10T08:58:00.000Z&quot;, &quot;host&quot;: &quot;LAB-WIN11&quot;, &quot;channel&quot;: &quot;Security&quot;, &quot;EventID&quot;: 4720, &quot;TargetUserName&quot;: &quot;svc_helper&quot;, &quot;SubjectUserName&quot;: &quot;admi<br>{&quot;@timestamp&quot;: &quot;2026-03-10T08:58:08.000Z&quot;, &quot;host&quot;: &quot;LAB-WIN11&quot;, &quot;channel&quot;: &quot;Security&quot;, &quot;EventID&quot;: 4732, &quot;TargetUserName&quot;: &quot;svc_helper&quot;, &quot;GroupName&quot;: &quot;Administra</td>
+          <td class="ev">{&quot;@timestamp&quot;: &quot;2026-03-10T08:58:00.000Z&quot;, &quot;host&quot;: &quot;LAB-WIN11&quot;, &quot;channel&quot;: &quot;Security&quot;, &quot;EventID&quot;: 4720, &quot;TargetUserName&quot;: &quot;svc_helper&quot;, &quot;TargetSid&quot;: &quot;S-1-5-21-1<br>{&quot;@timestamp&quot;: &quot;2026-03-10T08:58:08.000Z&quot;, &quot;host&quot;: &quot;LAB-WIN11&quot;, &quot;channel&quot;: &quot;Security&quot;, &quot;EventID&quot;: 4732, &quot;TargetUserName&quot;: &quot;Administrators&quot;, &quot;TargetSid&quot;: &quot;S-1-5-</td>
         </tr>
         <tr>
           <td><span class="sev" style="background:#d9534f">HIGH</span></td>
@@ -95,7 +95,7 @@
           <td><span class="sev" style="background:#d9534f">HIGH</span></td>
           <td>2026-03-10 09:02:00Z</td>
           <td><b>Windows Security event log cleared</b><div class="triage">The Windows Security audit log was cleared (EventID 1102). This is a classic anti-forensics / defense-evasion action. Correlate with the account that performed it and any activity immediately preceding the clear.</div></td>
-          <td><code>T1070.001</code></td>
+          <td><code>T1685.005 (ex-T1070.001)</code></td>
           <td>win_security</td>
           <td>LAB-WIN11</td>
           <td class="num">1</td>

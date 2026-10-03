@@ -8,8 +8,9 @@ match:
   any:
     - field: event_id
       equals: 4698
-    - field: image
-      icontains: schtasks.exe
+    # same logic as the Sigma/Wazuh rules: schtasks.exe with /create
+    - field: command_line
+      regex: '(?i)schtasks(\.exe)?\s.*/create\b'
 triage: >
   A scheduled task was created (Security EventID 4698 or schtasks.exe execution).
   Scheduled tasks are a common persistence mechanism. Verify the task name, the

@@ -1,11 +1,12 @@
-title: RDP / Windows Logon Brute Force From Single Source
-id: 7a1e0c10-0002-4a00-9a02-rdp0bruteforce2
+title: Windows Failed Network/RDP Logon (base event)
+id: 4654f5b8-e7a1-43c1-b5cf-12e5464888c2
+name: lab_win_failed_network_logon
 status: experimental
-description: Detects 8 or more failed Windows logons (EventID 4625, network/RemoteInteractive logon types) from one source IP within a short window.
+description: Single failed Windows logon (EventID 4625) of type 3 (network - also used by RDP with NLA) or 10 (RemoteInteractive). Base rule for the correlation below.
 references:
-  - https://attack.mitre.org/techniques/T1110/
+  - https://learn.microsoft.com/en-us/previous-versions/windows/it-pro/windows-10/security/threat-protection/auditing/event-4625
 author: Mohamed Elansari
-date: 2026/03/10
+date: 2026-03-10
 logsource:
   product: windows
   service: security
@@ -15,12 +16,38 @@ detection:
     LogonType:
       - 3
       - 10
-  timeframe: 2m
-  condition: selection | count() by IpAddress >= 8
+  condition: selection
 fields:
   - IpAddress
   - TargetUserName
   - LogonType
+  - Status
+  - SubStatus
+falsepositives:
+  - Any single mistyped password (expected noise)
+level: low
+tags:
+  - attack.credential-access
+  - attack.t1110.001
+---
+title: RDP / Windows Logon Brute Force From Single Source
+id: 020338ef-4ae0-4eb4-a216-b21a9502a843
+name: lab_win_failed_logon_burst
+status: experimental
+description: Detects 8 or more failed Windows logons (EventID 4625, logon type 3/10) from one source IP within 2 minutes (Sigma v2 event_count correlation).
+references:
+  - https://attack.mitre.org/techniques/T1110/
+author: Mohamed Elansari
+date: 2026-03-10
+correlation:
+  type: event_count
+  rules:
+    - lab_win_failed_network_logon
+  group-by:
+    - IpAddress
+  timespan: 2m
+  condition:
+    gte: 8
 falsepositives:
   - Service account with an expired password
   - Vulnerability scanner authenticating against the host

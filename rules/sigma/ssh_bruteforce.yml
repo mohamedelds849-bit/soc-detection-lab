@@ -1,22 +1,47 @@
-title: SSH Brute Force From Single Source
-id: 7a1e0c10-0001-4a00-9a01-ssh0bruteforce1
+title: SSH Failed Password (base event)
+id: 5531de77-da6e-406c-a110-c10b37759c01
+name: lab_ssh_failed_password
 status: experimental
-description: Detects 8 or more failed SSH password authentications from one source IP within a short window.
+description: Single failed SSH password authentication. Base rule referenced by the brute-force correlation below; not alerted on its own.
 references:
-  - https://attack.mitre.org/techniques/T1110/
+  - https://attack.mitre.org/techniques/T1110/001/
 author: Mohamed Elansari
-date: 2026/03/10
+date: 2026-03-10
 logsource:
   product: linux
   service: sshd
 detection:
   selection:
     message|contains: 'Failed password for'
-  timeframe: 2m
-  condition: selection | count() by src_ip >= 8
+  condition: selection
 fields:
   - src_ip
   - user
+falsepositives:
+  - Any single mistyped password (expected noise)
+level: low
+tags:
+  - attack.credential-access
+  - attack.t1110.001
+---
+title: SSH Brute Force From Single Source
+id: a9f86ae0-ca7d-4a06-9bc1-cd92e9de5f17
+name: lab_ssh_failed_password_burst
+status: experimental
+description: Detects 8 or more failed SSH password authentications from one source IP within 2 minutes (Sigma v2 event_count correlation).
+references:
+  - https://attack.mitre.org/techniques/T1110/
+author: Mohamed Elansari
+date: 2026-03-10
+correlation:
+  type: event_count
+  rules:
+    - lab_ssh_failed_password
+  group-by:
+    - src_ip
+  timespan: 2m
+  condition:
+    gte: 8
 falsepositives:
   - Misconfigured automation using the wrong credentials
   - A user repeatedly fat-fingering a password

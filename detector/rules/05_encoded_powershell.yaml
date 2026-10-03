@@ -11,9 +11,10 @@ match:
     - field: event_id
       equals: 1
     - field: image
-      icontains: powershell
+      regex: '(?i)\\(powershell|pwsh)\.exe$'
     - field: command_line
-      regex: "(?i)-enc(odedcommand)?\\s"
+      # PowerShell accepts -e / -ec / -en / -enc ... as abbreviations of -EncodedCommand
+      regex: '(?i)\s-(e|ec|en|enc|enco|encodedcommand)\s'
 triage: >
   PowerShell launched with an -EncodedCommand / -enc argument. Attackers use
   base64-encoded commands to hide intent. Decode the command, review the parent

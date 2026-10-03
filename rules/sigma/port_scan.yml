@@ -1,24 +1,49 @@
-title: Port Scan From Single Source
-id: 7a1e0c10-0008-4a00-9a08-portscan000008
+title: Network Connection (base event)
+id: 5ae3f150-3e3b-4333-92a5-9b6f6013f1b8
+name: lab_network_connection
 status: experimental
-description: Detects a single source IP connecting to many distinct destination ports in a short window (Sysmon EventID 3), indicating port/service scanning.
+description: Any network connection logged by Sysmon (EventID 3). Base rule for the value_count correlation below.
 references:
-  - https://attack.mitre.org/techniques/T1046/
+  - https://learn.microsoft.com/en-us/sysinternals/downloads/sysmon
 author: Mohamed Elansari
-date: 2026/03/10
+date: 2026-03-10
 logsource:
   product: windows
-  service: sysmon
   category: network_connection
 detection:
   selection:
     EventID: 3
-  timeframe: 1m
-  condition: selection | count(DestinationPort) by SourceIp >= 15
+  condition: selection
 fields:
   - SourceIp
   - DestinationIp
   - DestinationPort
+falsepositives:
+  - All normal traffic (base rule, not alerted on its own)
+level: informational
+---
+title: Port Scan From Single Source
+id: 0950e5a5-8aa7-4ee9-8597-1d98fba5f0f7
+status: experimental
+description: >
+  Detects a single source IP connecting to 15 or more distinct destination ports within 1 minute
+  (Sigma v2 value_count correlation over Sysmon EventID 3). Note that Sysmon only logs connections
+  it observes on the host and community configs filter EID 3 heavily; firewall/NetFlow logs are a
+  better source for scan detection in production.
+references:
+  - https://attack.mitre.org/techniques/T1046/
+author: Mohamed Elansari
+date: 2026-03-10
+correlation:
+  type: value_count
+  rules:
+    - lab_network_connection
+  group-by:
+    - SourceIp
+  timespan: 1m
+  condition:
+    field: DestinationPort
+    gte: 15
 falsepositives:
   - Authorized vulnerability scanner
   - Monitoring/health-check tooling

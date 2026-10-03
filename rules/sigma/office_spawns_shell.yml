@@ -1,11 +1,11 @@
 title: Office Application Spawning A Command Shell
-id: 7a1e0c10-0011-4a00-9a11-officeshell011
+id: ebcc5f64-81bb-4072-a1a8-2b8204dc1043
 status: experimental
 description: Detects a Microsoft Office application spawning a command interpreter, a hallmark of malicious document execution.
 references:
   - https://attack.mitre.org/techniques/T1204/002/
 author: Mohamed Elansari
-date: 2026/03/10
+date: 2026-03-10
 logsource:
   product: windows
   category: process_creation
@@ -20,6 +20,7 @@ detection:
     Image|endswith:
       - '\cmd.exe'
       - '\powershell.exe'
+      - '\pwsh.exe'
       - '\wscript.exe'
       - '\cscript.exe'
       - '\mshta.exe'

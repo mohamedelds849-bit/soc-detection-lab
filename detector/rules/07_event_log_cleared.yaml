@@ -1,6 +1,6 @@
 id: event_log_cleared
 name: Windows Security event log cleared
-attack: T1070.001
+attack: T1685.005 (ex-T1070.001)
 severity: high
 type: single
 entity_field: host

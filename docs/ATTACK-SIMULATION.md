@@ -36,11 +36,12 @@ Sur **ta** machine de test, provoquer plusieurs échecs de connexion réseau :
 ```powershell
 # 10 tentatives avec un mauvais mot de passe sur un compte de test local
 1..10 | ForEach-Object {
-  cmdkey /add:LAB-WIN11 /user:testuser /pass:MauvaisMotDePasse > $null
   net use \\LAB-WIN11\IPC$ /user:testuser MauvaisMotDePasse 2>$null
 }
 ```
-➜ Génère des EventID 4625 → détection de force brute.
+➜ Génère des EventID 4625 (LogonType 3, réseau) → détection de force brute.
+Remarque : avec NLA (défaut sur Windows 11), les échecs RDP réels sont eux aussi
+journalisés en LogonType **3**, pas 10 — c'est pourquoi les règles acceptent 3 et 10.
 
 ---
 
@@ -58,11 +59,15 @@ probable.
 # création PUIS suppression immédiate d'un utilisateur de test
 net user labtest P@ssForLabOnly! /add        # -> EventID 4720
 net localgroup Administrators labtest /add    # -> EventID 4732
+# Windows en français : le groupe s'appelle "Administrateurs"
+#   net localgroup Administrateurs labtest /add
+# (les règles Wazuh/Sigma utilisent le SID S-1-5-32-544, indépendant de la langue)
 # ... vérifier l'alerte ...
 net localgroup Administrators labtest /delete
 net user labtest /delete                      # nettoyage
 ```
 ➜ La séquence 4720 puis 4732 (Administrators) déclenche la règle.
+(Adapter aussi le nom du groupe dans les deux commandes de nettoyage.)
 
 ---
 
@@ -86,19 +91,26 @@ schtasks /create /tn "LabUpdater" /tr "cmd.exe /c whoami" /sc minute /mo 5
 # ... vérifier l'alerte ...
 schtasks /delete /tn "LabUpdater" /f        # nettoyage
 ```
-➜ EventID 4698 et/ou schtasks.exe → détection.
+➜ EventID 4698 et/ou schtasks.exe → détection. **4698 n'apparaît que si la
+sous-catégorie d'audit « Other Object Access Events » est activée** (voir
+`SETUP.md` §3 bis) ; sinon seule la règle Sysmon (100151) se déclenche.
 
 ---
 
-## 7. Journal d'évènements effacé — T1070.001 (`event_log_cleared` / 100160)
+## 7. Journal d'évènements effacé — T1685.005, ex-T1070.001 (`event_log_cleared` / 100160)
 
-> À faire **dans la VM de lab**, sur un journal de test, pas sur un poste de prod.
+> À faire **uniquement sur la machine/VM de lab**, jamais sur un poste de prod.
+> L'EventID 1102 n'est produit **que** par l'effacement du journal **Security**
+> (effacer un autre journal produit l'EventID 104 dans le journal System, que
+> cette règle ne couvre pas). Ce test efface donc les traces des tests
+> précédents : **exporter d'abord**.
 
 ```powershell
-# vider un journal de TEST créé pour l'occasion, ou le journal Security du lab
-wevtutil cl Security
+wevtutil epl Security C:\lab\security-avant-test.evtx   # sauvegarde
+wevtutil cl Security                                      # -> EventID 1102
 ```
-➜ EventID 1102 → détection d'effacement de journaux.
+➜ EventID 1102 → détection d'effacement de journaux (l'évènement a déjà été
+transmis au manager Wazuh : c'est tout l'intérêt de la centralisation).
 
 ---
 
@@ -111,13 +123,21 @@ Depuis une machine de lab, scanner **ton propre** hôte de test :
 nmap -sT -p 1-1000 10.10.0.12
 ```
 ➜ Nombreux ports distincts contactés depuis une même source (Sysmon EID 3) →
-détection de scan.
+détection de scan. **Limite :** Sysmon ne journalise que les connexions
+réellement acceptées par un processus de l'hôte (ports ouverts) et la config
+SwiftOnSecurity filtre EID 3 ; il est donc normal que peu d'évènements
+remontent (voir `SETUP.md` §5). Résultat négatif = limite de la source de
+données, pas forcément de la règle.
 
 ---
 
-## 9. Defender désactivé — T1562.001 (`defender_disabled` / 100180)
+## 9. Defender désactivé — T1685, ex-T1562.001 (`defender_disabled` / 100180, 100181)
 
 > Sur **ta** VM de test uniquement. **Réactiver** aussitôt après.
+> Si la **Protection contre les falsifications** (Tamper Protection, active par
+> défaut) est activée, la commande est bloquée : la règle 100180 (ligne de
+> commande, Sysmon EID 1) se déclenche quand même — c'est une *tentative* — mais
+> pas la règle 100181 (EventID 5001, changement d'état réel).
 
 ```powershell
 Set-MpPreference -DisableRealtimeMonitoring $true    # -> alerte critique

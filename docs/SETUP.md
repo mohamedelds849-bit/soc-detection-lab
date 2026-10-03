@@ -17,7 +17,18 @@ l'**agent Wazuh + Sysmon** sur l'hôte Windows pour envoyer les évènements.
 | Wazuh all-in-one (manager+indexer+dashboard) | dans WSL2 | ~6–8 Go | 3–4 Go au repos |
 | Agent Wazuh (Windows) | hôte Windows | ~100 Mo | faible |
 | Sysmon + config | hôte Windows | ~50 Mo | faible |
-| **Total** | | **~9–11 Go** | **≥ 4 Go conseillée** |
+| **Total** | | **~9–11 Go** (au départ) | **≥ 4 Go pour WSL2, 6 Go conseillés** |
+
+> **Réalisme disque/RAM.** Wazuh recommande officiellement 4 vCPU / 8 Go de RAM
+> pour un all-in-one ; 4–6 Go fonctionnent pour un lab d'un seul agent mais
+> l'indexer (OpenSearch/JVM) est le premier à tomber en manque de mémoire. Avec
+> 8 Go de RAM physique sur l'hôte, préférer `memory=4GB` et fermer les
+> applications lourdes ; avec 16 Go, `memory=6GB`. Côté disque, l'estimation est
+> celle d'une installation fraîche : les index d'alertes grossissent avec le
+> temps et la détection de vulnérabilités (activée par défaut depuis 4.8) peut
+> ajouter plusieurs Go → la désactiver pour le lab (voir §2). Le disque virtuel
+> `ext4.vhdx` de WSL2 **ne rétrécit pas tout seul** quand on supprime des
+> fichiers (voir §7).
 
 > Alternative sans WSL2 : une petite VM VirtualBox Ubuntu Server (2 vCPU, 4 Go RAM,
 > disque dynamique 15 Go). Plus lourde en disque, mais plus isolée. Les étapes
@@ -43,6 +54,22 @@ l'**agent Wazuh + Sysmon** sur l'hôte Windows pour envoyer les évènements.
    swap=2GB
    ```
    Puis `wsl --shutdown` et rouvrir Ubuntu.
+   Option (Windows 11 22H2+) : ajouter `networkingMode=mirrored` sous `[wsl2]`
+   pour que WSL2 partage le réseau de l'hôte — l'IP du manager ne change plus à
+   chaque redémarrage (sinon l'agent perd le manager, voir §8).
+4. **Activer systemd — OBLIGATOIRE avant d'installer Wazuh.** L'assistant
+   `wazuh-install.sh` crée, active et démarre des services **systemd** ; sans
+   systemd l'installation échoue. Vérifier dans Ubuntu :
+   ```bash
+   ps -p 1 -o comm=        # doit afficher : systemd
+   ```
+   Sinon, éditer `/etc/wsl.conf` (`sudo nano /etc/wsl.conf`) et ajouter :
+   ```ini
+   [boot]
+   systemd=true
+   ```
+   puis `wsl --shutdown` côté Windows et rouvrir Ubuntu. Nécessite une version
+   récente de WSL (`wsl --version` ; sinon `wsl --update`).
 
 ---
 
@@ -57,6 +84,9 @@ sudo bash ./wazuh-install.sh -a -i
 ```
 
 - `-a` = installation all-in-one (manager + indexer + dashboard).
+- `-i` = **ignorer la vérification des prérequis matériels** (CPU/RAM) de
+  l'assistant. Utile dans WSL2 avec peu de RAM, mais c'est un choix conscient :
+  si l'indexer plante ensuite, c'est la RAM (voir §8).
 - À la fin, le script affiche l'**URL du dashboard** (https://<ip-wsl>:443), le
   login `admin` et le **mot de passe généré** (le noter).
 - Récupérer l'IP WSL : `ip addr show eth0 | grep inet`.
@@ -64,10 +94,13 @@ sudo bash ./wazuh-install.sh -a -i
 ### Démarrage / arrêt des services
 ```bash
 sudo systemctl status wazuh-manager wazuh-indexer wazuh-dashboard
-# WSL2 ancien sans systemd : utiliser `sudo service <nom> start`
+sudo systemctl stop wazuh-dashboard wazuh-indexer wazuh-manager   # libère la RAM
 ```
-> Astuce WSL2 : activer systemd via `/etc/wsl.conf` →
-> `[boot]\nsystemd=true`, puis `wsl --shutdown`.
+
+### (Recommandé pour le lab) désactiver la détection de vulnérabilités
+Dans `/var/ossec/etc/ossec.conf`, bloc `<vulnerability-detection>` →
+`<enabled>no</enabled>`, puis `sudo systemctl restart wazuh-manager`. Économise
+plusieurs Go de disque et de la RAM ; inutile pour ce projet de détection.
 
 ---
 
@@ -80,6 +113,22 @@ sudo cp rules/wazuh/local_rules.xml /var/ossec/etc/rules/local_rules.xml
 sudo chown wazuh:wazuh /var/ossec/etc/rules/local_rules.xml
 sudo /var/ossec/bin/wazuh-logtest   # tester quelques lignes de log
 sudo systemctl restart wazuh-manager
+```
+
+---
+
+## 3 bis. Politique d'audit Windows (sinon certaines règles restent muettes)
+
+Par défaut Windows 11 journalise les connexions (4624/4625), la gestion des
+comptes (4720) et des groupes de sécurité (4732), mais **pas** la création de
+tâches planifiées (**4698**). Dans PowerShell **administrateur** (GUID utilisés
+car les noms de sous-catégories sont traduits sur un Windows français) :
+
+```powershell
+# Other Object Access Events -> EventID 4698
+auditpol /set /subcategory:"{0CCE9227-69AE-11D9-BED3-08002B30309D}" /success:enable
+# vérifier Logon, User Account Management, Security Group Management
+auditpol /get /subcategory:"{0CCE9215-69AE-11D9-BED3-08002B30309D},{0CCE9235-69AE-11D9-BED3-08002B30309D},{0CCE9237-69AE-11D9-BED3-08002B30309D}"
 ```
 
 ---
@@ -115,8 +164,18 @@ sudo systemctl restart wazuh-manager
      <log_format>eventchannel</log_format>
    </localfile>
    ```
-   S'assurer aussi que le canal **Security** est remonté (souvent présent par
-   défaut). Puis `Restart-Service WazuhSvc`.
+   S'assurer aussi que le canal **Security** est remonté (présent par défaut).
+   Pour la règle Defender 5001 (100181), ajouter de la même façon le canal
+   `Microsoft-Windows-Windows Defender/Operational`.
+   Puis `Restart-Service WazuhSvc`.
+
+> **Limite Sysmon EID 3 (scan de ports).** Sysmon ne journalise que les
+> connexions qu'un processus de l'hôte a réellement établies/acceptées : un scan
+> vers des ports **fermés** ne produit aucun EID 3, et la config SwiftOnSecurity
+> filtre fortement EID 3. La règle de scan (100171) ne verra donc qu'une partie
+> du scan. Pour un vrai lab de détection de scan, journaliser le pare-feu Windows
+> (sous-catégorie *Filtering Platform Connection*, EventID 5156/5157) ou des logs
+> réseau (Zeek, pare-feu).
 
 ---
 
@@ -129,8 +188,12 @@ sudo systemctl restart wazuh-manager
    `docs/ATTACK-SIMULATION.md` (ex. vider un journal de test, commande PowerShell
    encodée inoffensive) et vérifier l'alerte correspondante dans le dashboard.
 4. **Test des règles sans agent** : sur le manager,
-   `sudo /var/ossec/bin/wazuh-logtest` puis coller une ligne de
-   `datasets/auth.log` → la règle `100110` doit matcher après 8 lignes.
+   `sudo /var/ossec/bin/wazuh-logtest` puis coller **8 lignes** « Failed
+   password » de `datasets/auth.log` (même IP source) → la règle `100110` doit
+   matcher à la 8ᵉ. Les fichiers `*.jsonl` du dépôt utilisent un schéma simplifié
+   (pas le JSON `win.system.*` de l'eventchannel Wazuh) : ils ne se collent pas
+   tels quels dans `wazuh-logtest` ; tester les règles Windows avec de vrais
+   évènements (§6.3).
 
 ---
 
@@ -157,6 +220,11 @@ wsl --unregister Ubuntu-22.04   # supprime la distribution et son disque virtuel
 ```
 Enfin, supprimer `C:\Users\<toi>\.wslconfig` si tu ne veux plus limiter WSL2.
 
+> **Récupérer de l'espace sans tout désinstaller :** supprimer des fichiers dans
+> Ubuntu ne réduit pas `ext4.vhdx`. Avec WSL ≥ 2.0 :
+> `wsl --manage Ubuntu-22.04 --set-sparse true` (le disque rend alors l'espace
+> libéré). `wsl --unregister` reste la seule méthode qui libère tout.
+
 ---
 
 ## 8. Dépannage rapide
@@ -165,7 +233,7 @@ Enfin, supprimer `C:\Users\<toi>\.wslconfig` si tu ne veux plus limiter WSL2.
 |----------|-------|
 | Dashboard inaccessible | vérifier l'IP WSL2 (change à chaque reboot), services `wazuh-dashboard` actifs |
 | Indexer qui ne démarre pas | manque de RAM → augmenter `memory` dans `.wslconfig` ou réduire `-Xms/-Xmx` JVM |
-| Agent en *Never connected* | pare-feu Windows : ouvrir le port **1514/1515** vers le manager |
+| Agent en *Never connected* / *Disconnected* | l'IP WSL2 a changé (mettre à jour `<address>` dans l'`ossec.conf` de l'agent, ou passer en `networkingMode=mirrored`) ; vérifier que le manager écoute sur **1514/1515** (`sudo ss -tlnp`) |
 | Pas d'évènements Sysmon | canal mal déclaré dans `ossec.conf` ou Sysmon non installé |
 | `wazuh-logtest` ne matche pas | vérifier le SID parent du décodeur (varie selon version) |
 

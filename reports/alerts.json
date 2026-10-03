@@ -49,11 +49,11 @@
     "count": 8,
     "triage": "8+ failed Windows logons (EventID 4625, network/RDP logon type) from one source IP within 2 minutes. Investigate the source, confirm no successful 4624 followed, and consider account lockout / NLA enforcement.\n",
     "evidence": [
-      "{\"@timestamp\": \"2026-03-10T08:50:05.000Z\", \"host\": \"LAB-WIN11\", \"channel\": \"Security\", \"EventID\": 4625, \"TargetUserName\": \"administrator\", \"LogonType\": 10, \"IpAddress\": \"198.51.100.77\", \"Status\": \"0xC000006A\"}",
-      "{\"@timestamp\": \"2026-03-10T08:50:09.000Z\", \"host\": \"LAB-WIN11\", \"channel\": \"Security\", \"EventID\": 4625, \"TargetUserName\": \"administrator\", \"LogonType\": 10, \"IpAddress\": \"198.51.100.77\", \"Status\": \"0xC000006A\"}",
-      "{\"@timestamp\": \"2026-03-10T08:50:16.000Z\", \"host\": \"LAB-WIN11\", \"channel\": \"Security\", \"EventID\": 4625, \"TargetUserName\": \"administrator\", \"LogonType\": 10, \"IpAddress\": \"198.51.100.77\", \"Status\": \"0xC000006A\"}",
-      "{\"@timestamp\": \"2026-03-10T08:50:21.000Z\", \"host\": \"LAB-WIN11\", \"channel\": \"Security\", \"EventID\": 4625, \"TargetUserName\": \"administrator\", \"LogonType\": 10, \"IpAddress\": \"198.51.100.77\", \"Status\": \"0xC000006A\"}",
-      "{\"@timestamp\": \"2026-03-10T08:50:24.000Z\", \"host\": \"LAB-WIN11\", \"channel\": \"Security\", \"EventID\": 4625, \"TargetUserName\": \"administrator\", \"LogonType\": 10, \"IpAddress\": \"198.51.100.77\", \"Status\": \"0xC000006A\"}"
+      "{\"@timestamp\": \"2026-03-10T08:50:05.000Z\", \"host\": \"LAB-WIN11\", \"channel\": \"Security\", \"EventID\": 4625, \"TargetUserName\": \"administrator\", \"LogonType\": 10, \"IpAddress\": \"198.51.100.77\", \"Status\": \"0xC000006D\", \"SubStatus\": \"0xC000006A\"}",
+      "{\"@timestamp\": \"2026-03-10T08:50:09.000Z\", \"host\": \"LAB-WIN11\", \"channel\": \"Security\", \"EventID\": 4625, \"TargetUserName\": \"administrator\", \"LogonType\": 10, \"IpAddress\": \"198.51.100.77\", \"Status\": \"0xC000006D\", \"SubStatus\": \"0xC000006A\"}",
+      "{\"@timestamp\": \"2026-03-10T08:50:16.000Z\", \"host\": \"LAB-WIN11\", \"channel\": \"Security\", \"EventID\": 4625, \"TargetUserName\": \"administrator\", \"LogonType\": 10, \"IpAddress\": \"198.51.100.77\", \"Status\": \"0xC000006D\", \"SubStatus\": \"0xC000006A\"}",
+      "{\"@timestamp\": \"2026-03-10T08:50:21.000Z\", \"host\": \"LAB-WIN11\", \"channel\": \"Security\", \"EventID\": 4625, \"TargetUserName\": \"administrator\", \"LogonType\": 10, \"IpAddress\": \"198.51.100.77\", \"Status\": \"0xC000006D\", \"SubStatus\": \"0xC000006A\"}",
+      "{\"@timestamp\": \"2026-03-10T08:50:24.000Z\", \"host\": \"LAB-WIN11\", \"channel\": \"Security\", \"EventID\": 4625, \"TargetUserName\": \"administrator\", \"LogonType\": 10, \"IpAddress\": \"198.51.100.77\", \"Status\": \"0xC000006D\", \"SubStatus\": \"0xC000006A\"}"
     ],
     "time": "2026-03-10 08:50:34Z"
   },
@@ -68,8 +68,8 @@
     "count": 2,
     "triage": "A local account was created (EventID 4720) and shortly after added to the Administrators group (EventID 4732) on the same host. Confirm this change was authorized; attackers create admin accounts for persistence and privilege.\n",
     "evidence": [
-      "{\"@timestamp\": \"2026-03-10T08:58:00.000Z\", \"host\": \"LAB-WIN11\", \"channel\": \"Security\", \"EventID\": 4720, \"TargetUserName\": \"svc_helper\", \"SubjectUserName\": \"administrator\"}",
-      "{\"@timestamp\": \"2026-03-10T08:58:08.000Z\", \"host\": \"LAB-WIN11\", \"channel\": \"Security\", \"EventID\": 4732, \"TargetUserName\": \"svc_helper\", \"GroupName\": \"Administrators\", \"SubjectUserName\": \"administrator\"}"
+      "{\"@timestamp\": \"2026-03-10T08:58:00.000Z\", \"host\": \"LAB-WIN11\", \"channel\": \"Security\", \"EventID\": 4720, \"TargetUserName\": \"svc_helper\", \"TargetSid\": \"S-1-5-21-1111111111-2222222222-3333333333-1005\", \"SubjectUserName\": \"administrator\"}",
+      "{\"@timestamp\": \"2026-03-10T08:58:08.000Z\", \"host\": \"LAB-WIN11\", \"channel\": \"Security\", \"EventID\": 4732, \"TargetUserName\": \"Administrators\", \"TargetSid\": \"S-1-5-32-544\", \"MemberName\": \"-\", \"MemberSid\": \"S-1-5-21-1111111111-2222222222-3333333333-1005\", \"SubjectUserName\": \"administrator\"}"
     ],
     "time": "2026-03-10 08:58:08Z"
   },
@@ -121,7 +121,7 @@
   {
     "rule_id": "event_log_cleared",
     "name": "Windows Security event log cleared",
-    "attack": "T1070.001",
+    "attack": "T1685.005 (ex-T1070.001)",
     "severity": "high",
     "source": "win_security",
     "ts": 1773133320.0,
@@ -162,7 +162,7 @@
   {
     "rule_id": "defender_disabled",
     "name": "Microsoft Defender real-time protection disabled",
-    "attack": "T1562.001",
+    "attack": "T1685 (ex-T1562.001)",
     "severity": "critical",
     "source": "sysmon",
     "ts": 1773133440.0,

@@ -3,24 +3,46 @@
   File: /var/ossec/etc/rules/local_rules.xml  (on the Wazuh manager)
 
   These custom rules extend Wazuh's built-in ruleset with explicit MITRE
-  ATT&CK mapping for a portfolio lab. Custom rule IDs use the 100000+ range
-  (reserved for user rules). They reference standard decoders:
-    - sshd         : built-in sshd decoder (auth.log)
-    - windows      : windows_eventchannel decoder -> win.system.* / win.eventdata.*
-    - web-accesslog: built-in Apache/Nginx access-log decoder
+  ATT&CK mapping for a portfolio lab. Custom rule IDs use the 100000-120000
+  range (reserved for user rules).
 
-  All rules are DETECTION only. Validate with:
+  Parent SIDs were checked against the Wazuh v4.9.2 ruleset
+  (github.com/wazuh/wazuh/tree/v4.9.2/ruleset/rules):
+    - 0095-sshd_rules.xml        : 5760 (Failed password), 5710 (invalid user), 5715 (Accepted)
+    - 0580-win-security_rules.xml: 60122 (4625), 60109 (4720/4722), 60154 (Administrators
+                                   group changed, targetSid S-1-5-32-544), 60228 (4698), 60117 (1102)
+    - 0610-win-ms_logs_rules.xml : 63103 (1102 via Microsoft-Windows-Eventlog provider)
+    - 0595-win-sysmon_rules.xml  : 61603 (Sysmon EID 1), 61605 (Sysmon EID 3)
+    - 0600-win-wdefender_rules.xml: 62152 (Defender 5001, real-time protection disabled)
+    - 0245-web_rules.xml         : 31100 (web access log grouping)
+  Parent SIDs can change between Wazuh releases: ALWAYS confirm with
     /var/ossec/bin/wazuh-logtest
-  and syntactically with xmllint (see rules/README).
+  after deployment. Note that Wazuh already ships similar built-in rules
+  (e.g. 5763 SSH brute force, 60204 multiple Windows logon failures, 92008
+  Defender disabled by PowerShell); these custom rules re-implement the logic
+  with lab-specific grouping/thresholds. If a built-in sibling wins the match
+  in wazuh-logtest, attach the custom rule as a child of that built-in rule.
+
+  Regex: Wazuh's default regex engine (OSRegex) does NOT support (?i), ?, [..]
+  or {n}; every field that uses PCRE syntax therefore declares type="pcre2".
+
+  ATT&CK: Wazuh's bundled MITRE database predates ATT&CK v19 (April 2026), so the
+  rules below keep T1562.001 / T1070.001. In ATT&CK v19 these were revoked and
+  replaced by T1685 (Disable or Modify Tools) and T1685.005 (Clear Windows Event
+  Logs); the Sigma rules use the v19 IDs.
+
+  All rules are DETECTION only. Validate syntax with xmllint (see rules/README).
 -->
 <group name="soc_lab,attack,">
 
   <!-- =============================================================
        T1110 - SSH brute force (Linux auth.log)
-       Built-in rule 5710/5760 = sshd authentication failure.
+       Built-in 5760 = sshd "Failed password" for an existing user.
+       (Failed attempts for non-existent users hit 5710 instead; the
+       built-in 5712 already correlates those.)
        ============================================================= -->
   <rule id="100110" level="10" frequency="8" timeframe="120">
-    <if_matched_sid>5710</if_matched_sid>
+    <if_matched_sid>5760</if_matched_sid>
     <same_source_ip />
     <description>SSH brute force: 8+ failed logins from same source in 120s</description>
     <mitre>
@@ -29,10 +51,13 @@
     <group>authentication_failures,ssh,</group>
   </rule>
 
-  <!-- T1110 - successful SSH login shortly after a brute-force burst -->
-  <rule id="100111" level="12" frequency="1" timeframe="180">
-    <if_matched_sid>100110</if_matched_sid>
+  <!-- T1110 - successful SSH login (5715) from a source that triggered
+       100110 in the previous 180s. Same pattern as Wazuh's built-in 40112
+       ("Multiple authentication failures followed by a success"):
+       if_sid + if_matched_sid + timeframe, no frequency. -->
+  <rule id="100111" level="12" timeframe="180">
     <if_sid>5715</if_sid>
+    <if_matched_sid>100110</if_matched_sid>
     <same_source_ip />
     <description>SSH successful login after brute force (possible credential compromise)</description>
     <mitre>
@@ -43,9 +68,10 @@
 
   <!-- =============================================================
        T1110 - RDP / Windows logon brute force (EventID 4625)
+       Built-in 60122 = "Logon Failure - Unknown user or bad password".
        ============================================================= -->
   <rule id="100120" level="5">
-    <if_sid>60000</if_sid>
+    <if_sid>60122</if_sid>
     <field name="win.system.eventID">^4625$</field>
     <description>Windows failed logon (EventID 4625)</description>
     <options>no_full_log</options>
@@ -66,7 +92,7 @@
        T1136.001 / T1098 - new local user then added to Administrators
        ============================================================= -->
   <rule id="100130" level="6">
-    <if_sid>60000</if_sid>
+    <if_sid>60109</if_sid>
     <field name="win.system.eventID">^4720$</field>
     <description>Windows local user account created (EventID 4720)</description>
     <mitre>
@@ -75,10 +101,14 @@
     <group>account_changes,windows,</group>
   </rule>
 
-  <rule id="100131" level="10" frequency="1" timeframe="120">
-    <if_sid>60000</if_sid>
+  <!-- Built-in 60154 = Administrators group changed (targetSid S-1-5-32-544,
+       language-independent: the group is "Administrateurs" on French Windows).
+       60154 covers both 4732 (added) and 4733 (removed) -> keep the eventID filter.
+       Limitation: Wazuh's same_field cannot join 4720 targetSid with 4732
+       memberSid (different field names), so this correlates per host only. -->
+  <rule id="100131" level="10" timeframe="120">
+    <if_sid>60154</if_sid>
     <field name="win.system.eventID">^4732$</field>
-    <field name="win.eventdata.targetUserName">Administrators</field>
     <if_matched_sid>100130</if_matched_sid>
     <description>New local account added to Administrators group (persistence/privilege)</description>
     <mitre>
@@ -93,8 +123,8 @@
        ============================================================= -->
   <rule id="100140" level="10">
     <if_sid>61603</if_sid>
-    <field name="win.eventdata.image">(?i)powershell\.exe</field>
-    <field name="win.eventdata.commandLine">(?i)-enc(odedcommand)?\s</field>
+    <field name="win.eventdata.image" type="pcre2">(?i)\\(powershell|pwsh)\.exe$</field>
+    <field name="win.eventdata.commandLine" type="pcre2">(?i)\s-(e|ec|en|enc|enco|encodedcommand)\s</field>
     <description>Suspicious PowerShell encoded command (-EncodedCommand)</description>
     <mitre>
       <id>T1059.001</id>
@@ -104,9 +134,10 @@
 
   <!-- =============================================================
        T1053.005 - scheduled task created (Security 4698 or schtasks.exe)
+       4698 requires the audit subcategory "Other Object Access Events".
        ============================================================= -->
   <rule id="100150" level="7">
-    <if_sid>60000</if_sid>
+    <if_sid>60228</if_sid>
     <field name="win.system.eventID">^4698$</field>
     <description>Scheduled task created (EventID 4698)</description>
     <mitre>
@@ -117,8 +148,8 @@
 
   <rule id="100151" level="7">
     <if_sid>61603</if_sid>
-    <field name="win.eventdata.image">(?i)schtasks\.exe</field>
-    <field name="win.eventdata.commandLine">(?i)/create</field>
+    <field name="win.eventdata.image" type="pcre2">(?i)\\schtasks\.exe$</field>
+    <field name="win.eventdata.commandLine" type="pcre2">(?i)/create</field>
     <description>Scheduled task created via schtasks.exe</description>
     <mitre>
       <id>T1053.005</id>
@@ -127,10 +158,12 @@
   </rule>
 
   <!-- =============================================================
-       T1070.001 - Windows event log cleared (EventID 1102)
+       T1070.001 (ATT&CK v19: T1685.005) - Security log cleared (1102)
+       Depending on how the event is classified it reaches 60117
+       (Security informational) or 63103 (Eventlog provider) - both listed.
        ============================================================= -->
   <rule id="100160" level="12">
-    <if_sid>60000</if_sid>
+    <if_sid>60117, 63103</if_sid>
     <field name="win.system.eventID">^1102$</field>
     <description>Windows Security audit log cleared (anti-forensics)</description>
     <mitre>
@@ -141,7 +174,10 @@
 
   <!-- =============================================================
        T1046 - port scan from single source (many network connections)
-       Sysmon EID 3 = network connection. Correlate frequency per source.
+       Sysmon EID 3 = network connection. NOTE: this counts connections,
+       not DISTINCT ports (the Sigma/engine versions count distinct ports).
+       Sysmon only logs connections it observes and community configs
+       filter EID 3 heavily - see docs/SETUP.md.
        ============================================================= -->
   <rule id="100170" level="3">
     <if_sid>61605</if_sid>
@@ -161,16 +197,30 @@
   </rule>
 
   <!-- =============================================================
-       T1562.001 - Microsoft Defender real-time protection disabled
+       T1562.001 (ATT&CK v19: T1685) - Defender real-time protection disabled
+       100180: the attempt (command line, Sysmon EID 1)
+       100181: the state change (Defender Operational EventID 5001). It also
+               catches GUI/GPO disabling, and stays silent when Tamper
+               Protection blocked the command.
        ============================================================= -->
   <rule id="100180" level="12">
     <if_sid>61603</if_sid>
-    <field name="win.eventdata.commandLine">(?i)DisableRealtimeMonitoring</field>
-    <description>Microsoft Defender real-time monitoring disabled (defense evasion)</description>
+    <field name="win.eventdata.commandLine" type="pcre2">(?i)DisableRealtimeMonitoring</field>
+    <description>Microsoft Defender real-time monitoring disable attempt (defense evasion)</description>
     <mitre>
       <id>T1562.001</id>
     </mitre>
     <group>defense_evasion,sysmon,</group>
+  </rule>
+
+  <rule id="100181" level="12">
+    <if_sid>62152</if_sid>
+    <field name="win.system.eventID">^5001$</field>
+    <description>Microsoft Defender real-time protection is disabled (EventID 5001)</description>
+    <mitre>
+      <id>T1562.001</id>
+    </mitre>
+    <group>defense_evasion,windows,</group>
   </rule>
 
   <!-- =============================================================
@@ -179,7 +229,7 @@
        ============================================================= -->
   <rule id="100190" level="10">
     <if_sid>31100</if_sid>
-    <url>(?i)(cmd=|exec=|eval|whoami|shell\.php|/uploads/.+\.php|up\.php|evil\.php)</url>
+    <url type="pcre2">(?i)(cmd=|exec=|eval|whoami|shell\.php|/uploads/.+\.php|up\.php|evil\.php)</url>
     <description>Possible web shell request (command-exec parameters on PHP endpoint)</description>
     <mitre>
       <id>T1505.003</id>
@@ -192,8 +242,8 @@
        ============================================================= -->
   <rule id="100200" level="10">
     <if_sid>61603</if_sid>
-    <field name="win.eventdata.parentImage">(?i)(winword|excel|powerpnt|outlook|msaccess)\.exe</field>
-    <field name="win.eventdata.image">(?i)(cmd|powershell|wscript|cscript|mshta)\.exe</field>
+    <field name="win.eventdata.parentImage" type="pcre2">(?i)\\(winword|excel|powerpnt|outlook|msaccess)\.exe$</field>
+    <field name="win.eventdata.image" type="pcre2">(?i)\\(cmd|powershell|pwsh|wscript|cscript|mshta)\.exe$</field>
     <description>Office application spawned a command interpreter (malicious document)</description>
     <mitre>
       <id>T1204.002</id>

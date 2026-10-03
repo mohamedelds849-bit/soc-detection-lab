@@ -102,7 +102,7 @@ def gen_benign_windows():
             win_events.append({
                 "@timestamp": iso(t + timedelta(seconds=5)), "host": WIN_HOST, "channel": "Security",
                 "EventID": 4625, "TargetUserName": user, "LogonType": logon_type,
-                "IpAddress": ip, "Status": "0xC000006A",
+                "IpAddress": ip, "Status": "0xC000006D", "SubStatus": "0xC000006A",
             })
 
 
@@ -173,7 +173,10 @@ def atk_ssh_bruteforce():
 
 
 def atk_rdp_bruteforce():
-    """T1110: RDP brute force (Windows 4625, LogonType 10)."""
+    """T1110: RDP brute force (Windows 4625, LogonType 10).
+
+    Note: with NLA (Windows default) real failed RDP attempts are logged as
+    LogonType 3, not 10 - the rules accept both."""
     t = BASE + timedelta(minutes=50)
     victim = "administrator"
     for i in range(12):
@@ -181,7 +184,7 @@ def atk_rdp_bruteforce():
         win_events.append({
             "@timestamp": iso(t), "host": WIN_HOST, "channel": "Security",
             "EventID": 4625, "TargetUserName": victim, "LogonType": 10,
-            "IpAddress": ATTACKER_RDP_IP, "Status": "0xC000006A",
+            "IpAddress": ATTACKER_RDP_IP, "Status": "0xC000006D", "SubStatus": "0xC000006A",
         })
     # successful RDP logon after the burst -> success-after-failures (Windows)
     t += timedelta(seconds=5)
@@ -196,15 +199,19 @@ def atk_new_local_admin():
     """T1136/T1098: create a local user then add it to Administrators."""
     t = BASE + timedelta(minutes=58)
     new_user = "svc_helper"
+    new_sid = "S-1-5-21-1111111111-2222222222-3333333333-1005"   # fictional SID
     win_events.append({
         "@timestamp": iso(t), "host": WIN_HOST, "channel": "Security",
-        "EventID": 4720, "TargetUserName": new_user, "SubjectUserName": "administrator",
+        "EventID": 4720, "TargetUserName": new_user, "TargetSid": new_sid,
+        "SubjectUserName": "administrator",
     })
     t += timedelta(seconds=8)
     win_events.append({
         "@timestamp": iso(t), "host": WIN_HOST, "channel": "Security",
-        "EventID": 4732, "TargetUserName": new_user, "GroupName": "Administrators",
-        "SubjectUserName": "administrator",
+        # Real 4732 schema: TargetUserName/TargetSid = the GROUP, MemberSid = account added
+        # (MemberName is "-" for local accounts).
+        "EventID": 4732, "TargetUserName": "Administrators", "TargetSid": "S-1-5-32-544",
+        "MemberName": "-", "MemberSid": new_sid, "SubjectUserName": "administrator",
     })
 
 
@@ -241,7 +248,7 @@ def atk_scheduled_task():
 
 
 def atk_clear_event_log():
-    """T1070.001: Windows event log cleared (Security 1102)."""
+    """T1685.005 (ex-T1070.001): Windows event log cleared (Security 1102)."""
     t = BASE + timedelta(minutes=62)
     win_events.append({
         "@timestamp": iso(t), "host": WIN_HOST, "channel": "Security",
@@ -265,7 +272,7 @@ def atk_port_scan():
 
 
 def atk_defender_disabled():
-    """T1562.001: disable Microsoft Defender real-time monitoring."""
+    """T1685 (ex-T1562.001): disable Microsoft Defender real-time monitoring."""
     t = BASE + timedelta(minutes=64)
     sysmon_events.append({
         "@timestamp": iso(t), "host": WIN_HOST,

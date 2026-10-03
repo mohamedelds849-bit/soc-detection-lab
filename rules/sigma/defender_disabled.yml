@@ -1,11 +1,11 @@
 title: Microsoft Defender Real-Time Protection Disabled
-id: 7a1e0c10-0009-4a00-9a09-defoff0000009
+id: 6b8ac556-d60d-42f6-b5ad-9cc7708d88f6
 status: experimental
-description: Detects disabling of Microsoft Defender real-time monitoring via Set-MpPreference, a common defense-evasion step.
+description: Detects disabling of Microsoft Defender real-time monitoring via Set-MpPreference, a common defense-impairment step (ATT&CK v19 T1685, formerly T1562.001).
 references:
-  - https://attack.mitre.org/techniques/T1562/001/
+  - https://attack.mitre.org/techniques/T1685/
 author: Mohamed Elansari
-date: 2026/03/10
+date: 2026-03-10
 logsource:
   product: windows
   category: process_creation
@@ -20,5 +20,33 @@ falsepositives:
   - Authorized maintenance that temporarily disables AV
 level: critical
 tags:
-  - attack.defense-evasion
-  - attack.t1562.001
+  - attack.defense-impairment
+  - attack.t1685
+---
+title: Microsoft Defender Real-Time Protection Disabled (Defender 5001)
+id: 033bc52b-ecbd-4cb4-aa35-460bb5bcbb1c
+status: experimental
+description: >
+  Detects the Defender state change itself (Microsoft-Windows-Windows Defender/Operational EventID 5001,
+  "Real-time protection is disabled"). Complements the command-line rule above: it also catches disabling
+  via the GUI / GPO, and it does NOT fire when Tamper Protection blocked the Set-MpPreference attempt.
+references:
+  - https://learn.microsoft.com/en-us/defender-endpoint/troubleshoot-microsoft-defender-antivirus
+  - https://attack.mitre.org/techniques/T1685/
+author: Mohamed Elansari
+date: 2026-03-10
+logsource:
+  product: windows
+  service: windefend
+detection:
+  selection:
+    EventID: 5001
+  condition: selection
+fields:
+  - Computer
+falsepositives:
+  - Authorized maintenance that temporarily disables AV
+level: high
+tags:
+  - attack.defense-impairment
+  - attack.t1685

@@ -13,7 +13,7 @@ match:
     - field: parent_image
       regex: "(?i)(WINWORD|EXCEL|POWERPNT|OUTLOOK|MSACCESS)\\.EXE"
     - field: image
-      regex: "(?i)(cmd|powershell|wscript|cscript|mshta)\\.exe"
+      regex: "(?i)(cmd|powershell|pwsh|wscript|cscript|mshta)\\.exe"
 triage: >
   A Microsoft Office application (Word/Excel/...) spawned a command interpreter
   (cmd/powershell/...). This is a hallmark of malicious document execution
