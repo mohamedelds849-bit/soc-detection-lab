@@ -259,3 +259,11 @@ version) prédisait que les règles locales de niveau élevé passeraient avant 
 enfants intégrés de même parent. C'était faux pour 4 règles. Seule l'exécution sur
 un vrai moteur l'a montré, et la CI empêche désormais toute régression.
 
+
+### Preuve que la CI bloque une régression (2026-10-03)
+- Problème trouvé en revue : l'étape « Replay » passe par `| tee` sans `pipefail`, donc un échec de
+  `check_results.py` y était masqué. Correction : en CI (`CI=true`), `lab/start.sh` rejoue et vérifie aussi
+  les cas dans l'étape 1, qui n'est pas pipée.
+- Test : branche `ci-regression-test` avec 100192 remis en `<if_sid>31100</if_sid>` → run **failure**
+  (`17/18 cases OK`, `KO 17_web_shell_requests … 31108`). En parallèle `main` : **success** (18/18).
+  La branche de test a ensuite été supprimée.
