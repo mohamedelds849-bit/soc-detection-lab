@@ -260,8 +260,8 @@ ensuite (4720/4732, 4698, 1102) — dans ce lab, c'est `administrator` qui crée
 > validées par `sigma check`)**, et développement d'un **moteur de détection Python
 > offline** (corrélation par seuil / valeurs distinctes / séquence) exécuté sur des
 > **journaux synthétiques** (Linux, Windows Security, Sysmon, Apache) — **12/12
-> détections déclenchées, 0 faux positif** sur la base bénigne synthétique (avec
-> quasi-attaques), **145 tests pytest** (entité, compte, bornes de seuil et de
+> détections déclenchées**, aucune alerte sur la base bénigne synthétique avec
+> quasi-attaques (test de robustesse, pas un taux de faux positifs), **145 tests pytest** (entité, compte, bornes de seuil et de
 > fenêtre). *Moteur et règles réalisés ; règles Wazuh **pas encore rejouées** sur
 > un manager réel (checklist `wazuh-logtest` prête) ; le déploiement Wazuh
 > (manager/indexer/dashboard + agent + Sysmon) est documenté pour un déploiement
