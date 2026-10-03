@@ -1,0 +1,1 @@
+{"win":{"system":{"providerName":"Microsoft-Windows-Eventlog","eventID":"1102","channel":"Security","computer":"LAB-WIN11","severityValue":"INFORMATION","systemTime":"2026-03-10T09:02:00.000Z"},"eventdata":{"subjectUserName":"administrator"}}}

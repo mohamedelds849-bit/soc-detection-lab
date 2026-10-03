@@ -1,0 +1,1 @@
+{"win":{"system":{"providerName":"Microsoft-Windows-Windows Defender","eventID":"5001","channel":"Microsoft-Windows-Windows Defender/Operational","computer":"LAB-WIN11","severityValue":"INFORMATION","systemTime":"2026-03-10T09:04:01.000Z"},"eventdata":{"productName":"Microsoft Defender Antivirus"}}}

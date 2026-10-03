@@ -1,0 +1,4 @@
+192.0.2.44 - - [10/Mar/2026:09:05:07 +0000] "POST /uploads/shell.php?cmd=whoami HTTP/1.1" 200 116 "-" "curl/7.88.1"
+192.0.2.44 - - [10/Mar/2026:09:05:17 +0000] "GET /images/up.php?cmd=id HTTP/1.1" 200 89 "-" "curl/7.88.1"
+192.0.2.44 - - [10/Mar/2026:09:05:29 +0000] "POST /wp-content/uploads/evil.php HTTP/1.1" 200 100 "-" "curl/7.88.1"
+192.0.2.44 - - [10/Mar/2026:09:05:34 +0000] "GET /uploads/shell.php?cmd=Y2F0IC9ldGMvcGFzc3dk HTTP/1.1" 200 88 "-" "curl/7.88.1"

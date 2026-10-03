@@ -1,17 +1,39 @@
 id: web_shell_request
-name: Web shell-like request in web access logs
+name: Web shell interaction (behaviour-based) in web access logs
 attack: T1505.003
 severity: high
 type: single
 entity_field: src_ip
+# Behaviour, not file names. Any ONE of three indicators:
+#   A. a command-execution parameter (cmd/exec/command/execute/run/c) whose
+#      value is an OS discovery command (whoami, id, uname, net user, ...);
+#   B. a PHP code-execution call or an encoded payload in a command parameter
+#      (eval(, assert(, system(, base64_decode(, or a long base64 cmd= value);
+#   C. a successful POST (2xx) to a PHP/PHTML/PHAR file under an upload-type
+#      directory (uploads/, upload/, files/, media/, tmp/) - where application
+#      code should never be executed from.
+# Deliberately NOT matched: words like "evaluation", "shell" or "whoami" in a
+# normal search parameter (q=...), or ordinary id= parameters.
 match:
   all:
     - field: source
       equals: apache
+  any:
     - field: url
-      regex: "(?i)(cmd=|exec=|eval|whoami|shell\\.php|/uploads/.*\\.php|up\\.php|evil\\.php)"
+      regex: '(?i)[?&](cmd|exec|command|execute|run|c)=(?:[^&]*?(?:\+|%20|%3B|%7C|;|\|))?(?:whoami|id|uname|hostname|ipconfig|ifconfig|pwd|net(?:\+|%20)+(?:user|localgroup)|cat(?:\+|%20)+(?:/|%2F)etc(?:/|%2F)passwd|ls(?:\+|%20)+-[a-z]*)(?=$|&|\+|%20|%3B|%7C)'
+    - field: url
+      regex: '(?i)(?:\b(?:eval|assert|system|passthru|shell_exec|base64_decode)(?:\(|%28))|[?&](?:cmd|exec|command|execute)=(?=[^&]*\d)(?:[A-Za-z0-9+/]|%2B|%2F){16,}(?:=|%3D){0,2}(?:&|$)'
+    - all:
+        - field: method
+          equals: POST
+        - field: url
+          regex: '(?i)/(?:uploads?|files|media|tmp)/(?:[^?#]*/)?[^/?#]+\.(?:php\d?|phtml|phar)(?:\?|$)'
+        - field: status
+          in: [200, 201, 202, 204]
 triage: >
-  A request targeting a PHP endpoint with command-execution style parameters
-  (cmd=, whoami, /uploads/...). Possible web shell interaction. Inspect the web
-  root for unauthorized .php files, review the source IP's full request history,
-  and check server-side process execution.
+  Behavioural web shell indicator: an OS command passed in a command-style
+  parameter, a PHP code-execution / encoded payload, or a successful POST to a
+  script inside an upload directory. Inspect the web root (especially upload
+  folders) for unauthorized scripts, pull the source IP's full request history
+  and user agent, and check the web server's child processes (Sysmon EID 1 /
+  auditd) for whoami/id/uname spawned by the web server user.

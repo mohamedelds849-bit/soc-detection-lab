@@ -105,11 +105,21 @@ Types implémentés dans le moteur offline (`detector/engine.py`) :
 - **distinct** : N **valeurs distinctes** d'un champ dans une fenêtre (ex. 15 ports
   de destination distincts / 60 s → scan).
 - **sequence** : étapes **ordonnées** dans une fenêtre (ex. 8 échecs **puis** un
-  succès ; ou création de compte **puis** ajout à Administrators).
+  succès ; ou création de compte **puis** ajout à Administrators). Le moteur
+  regarde **en arrière** depuis l'évènement final (le succès) : il faut au moins
+  N échecs dans les 180 s qui le précèdent. Une étape peut lire la clé de
+  corrélation dans un autre champ (`alias`) : le SID du compte est `TargetSid`
+  dans 4720 mais `MemberSid` dans 4732.
 - **single** : un évènement unique suffit (ex. journal effacé, Defender désactivé).
 
 Dans Wazuh, la corrélation s'exprime avec `frequency` + `timeframe`,
-`if_matched_sid`, `same_source_ip`, `same_field`, etc.
+`if_matched_sid`, `same_source_ip`, `same_field`, etc. Deux pièges lus dans le
+code source de Wazuh 4.9.2 : (1) les règles sœurs sont essayées par **niveau
+décroissant** puis dans l'ordre de chargement, donc une règle intégrée de même
+niveau sur le même parent gagne avant la vôtre (d'où 100110 enfant de 5763, et
+100121 enfant de 60204) ; (2) `frequency="8"` se déclenche bien au 8ᵉ
+évènement (le code retire 2 à la valeur lue et compte l'évènement courant), et la
+fenêtre est mesurée sur l'heure de **réception** par le manager.
 
 ---
 
@@ -124,14 +134,17 @@ Un **faux positif** est une alerte sur une activité légitime. Approche :
 4. **Contexte / enrichissement** : géolocalisation, réputation IP, heure ouvrée.
 5. **Mesure** : suivre taux de FP vs. vrais positifs, itérer. Dans ce lab, chaque
    règle est **testée** pour se déclencher sur l'attaque **et** rester silencieuse
-   sur une base bénigne (0 FP sur 215 évènements).
+   sur une base bénigne (0 FP sur 246 évènements, dont des quasi-attaques : 7
+   échecs puis succès, ajout d'un compte existant aux Administrateurs,
+   `/search?q=evaluation`). Les anciennes règles 04 et 10 donnaient 3 faux
+   positifs sur ces quasi-attaques.
 
 Compromis fondamental : seuil trop bas → bruit (fatigue d'alerte) ; trop haut →
 angles morts (faux négatifs).
 
 ---
 
-## 7. 15 questions d'entretien (avec réponses modèles)
+## 7. 16 questions d'entretien (avec réponses modèles)
 
 **Q1. Différence entre IDS, SIEM et EDR ?**
 Un **IDS** détecte des intrusions réseau/hôte via signatures/anomalies. Un **SIEM**
@@ -208,22 +221,48 @@ intégrée à Wazuh 4.x) utilisent encore les anciens identifiants.
 **Q15. Comment valider qu'une règle de détection est bonne ?**
 Elle doit (1) se déclencher sur l'attaque ciblée (vrai positif), (2) rester
 silencieuse sur l'activité normale (pas de FP), (3) être mappée ATT&CK, (4) être
-**testable** et reproductible. Ce lab le fait via `pytest` : 11/11 détections,
+**testable** et reproductible. Ce lab le fait via `pytest` : 12/12 détections, tests
+de bornes (7 contre 8 échecs, 14 contre 15 ports, fenêtre de 180 s contre 181 s),
 0 FP sur la base bénigne. **Limite à dire honnêtement :** la base bénigne vient du
 même générateur que les attaques ; il faut aussi tester des **variantes** de
 l'attaque (ex. `-e`/`-ec` au lieu de `-EncodedCommand`, test ajouté) et rejouer
 la règle sur de vrais journaux avant de la déclarer fiable.
+
+**Q16. Comment détectez-vous un RDP réussi après une force brute ? Pourquoi
+LogonType 3 avec NTLM, et pas seulement 10 ?**
+On corrèle par **IP source** : au moins 8 évènements **4625** (LogonType 3 ou 10)
+puis, dans les 180 s, un **4624** réussi depuis la même IP (règle 12, T1110 pour
+la force brute + **T1078 Valid Accounts** car l'attaquant utilise désormais un vrai
+compte). Le succès est un 4624 **LogonType 10** (RemoteInteractive, la session RDP)
+**ou** un **LogonType 3 avec `AuthenticationPackageName = NTLM`** : avec **NLA**
+(défaut de Windows), la vérification du mot de passe RDP est une ouverture de
+session réseau type 3, et les échecs eux-mêmes sont des 4625 type 3 ; NTLM type 3
+depuis l'extérieur correspond aussi à une devinette de mot de passe SMB/WinRM ou à
+du pass-the-hash. On exclut Kerberos type 3, qui est le bruit normal d'un domaine.
+On ne groupe **pas** par compte : en password spraying, le compte qui réussit
+n'est pas forcément celui qui a échoué. Côté Wazuh, la règle est un enfant de
+60106 (4624) avec `if_matched_sid` sur l'alerte de force brute et
+`same_field win.eventdata.ipAddress`, au niveau 13 pour passer avant la règle
+intégrée 40112 (niveau 12). Réponse à donner tant que Wazuh n'est pas déployé :
+« la logique est testée dans mon moteur et en Sigma ; côté Wazuh j'ai relu les SID
+parents et l'ordre d'évaluation dans le code source, et la checklist
+`docs/WAZUH-VALIDATION.md` est prête, mais je ne l'ai pas encore rejouée ». Suite
+de l'investigation : traiter le compte comme compromis et chercher ce qu'il a fait
+ensuite (4720/4732, 4698, 1102) — dans ce lab, c'est `administrator` qui crée
+`svc_helper` 7 minutes plus tard.
 
 ---
 
 ## 8. Ligne de CV (honnête)
 
 > **Projet — SOC Detection Lab (detection engineering, défensif).** Conception de
-> 11 détections mappées MITRE ATT&CK au format **Wazuh (XML)** et **Sigma (YAML,
+> 12 détections mappées MITRE ATT&CK au format **Wazuh (XML)** et **Sigma (YAML,
 > validées par `sigma check`)**, et développement d'un **moteur de détection Python
 > offline** (corrélation par seuil / valeurs distinctes / séquence) exécuté sur des
-> **journaux synthétiques** (Linux, Windows Security, Sysmon, Apache) — **11/11
-> détections déclenchées, 0 faux positif** sur la base bénigne synthétique,
-> **31 tests pytest**. *Moteur et règles réalisés ;
-> le déploiement Wazuh (manager/indexer/dashboard + agent + Sysmon) est documenté
-> pour un déploiement personnel sur ma machine.*
+> **journaux synthétiques** (Linux, Windows Security, Sysmon, Apache) — **12/12
+> détections déclenchées, 0 faux positif** sur la base bénigne synthétique (avec
+> quasi-attaques), **145 tests pytest** (entité, compte, bornes de seuil et de
+> fenêtre). *Moteur et règles réalisés ; règles Wazuh **pas encore rejouées** sur
+> un manager réel (checklist `wazuh-logtest` prête) ; le déploiement Wazuh
+> (manager/indexer/dashboard + agent + Sysmon) est documenté pour un déploiement
+> personnel sur ma machine.*

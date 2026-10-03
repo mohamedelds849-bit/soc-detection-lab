@@ -189,11 +189,14 @@ auditpol /get /subcategory:"{0CCE9215-69AE-11D9-BED3-08002B30309D},{0CCE9235-69A
    encodée inoffensive) et vérifier l'alerte correspondante dans le dashboard.
 4. **Test des règles sans agent** : sur le manager,
    `sudo /var/ossec/bin/wazuh-logtest` puis coller **8 lignes** « Failed
-   password » de `datasets/auth.log` (même IP source) → la règle `100110` doit
-   matcher à la 8ᵉ. Les fichiers `*.jsonl` du dépôt utilisent un schéma simplifié
-   (pas le JSON `win.system.*` de l'eventchannel Wazuh) : ils ne se collent pas
-   tels quels dans `wazuh-logtest` ; tester les règles Windows avec de vrais
-   évènements (§6.3).
+   password » de `datasets/auth.log` (même IP source) → la règle intégrée `5763`
+   puis la règle `100110` (son enfant) doivent matcher à la 8ᵉ. Les fichiers
+   `*.jsonl` du dépôt utilisent un schéma simplifié : ils ne se collent pas tels
+   quels. Utiliser `python tools/make_wazuh_samples.py`, qui écrit les lignes au
+   format eventchannel dans `datasets/wazuh_logtest/`, et suivre
+   **`docs/WAZUH-VALIDATION.md`** (checklist règle par règle, avec la
+   modification temporaire de la règle 60000 nécessaire pour tester des
+   évènements Windows dans `wazuh-logtest`).
 
 ---
 

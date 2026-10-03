@@ -1,0 +1,1 @@
+{"win":{"system":{"providerName":"Microsoft-Windows-Security-Auditing","eventID":"4698","channel":"Security","computer":"LAB-WIN11","severityValue":"AUDIT_SUCCESS","systemTime":"2026-03-10T09:01:00.000Z"},"eventdata":{"taskName":"\\Updater","subjectUserName":"mohamed"}}}

@@ -24,9 +24,9 @@
 <body>
 <header>
   <h1>SOC Detection Lab &mdash; Offline Triage Report</h1>
-  <div class="sub">275 events analyzed &middot; 14 alerts &middot; synthetic lab data (defensive exercise)</div>
+  <div class="sub">307 events analyzed &middot; 16 alerts &middot; synthetic lab data (defensive exercise)</div>
 </header>
-<div class="cards"><div class="card" style="border-color:#b00020"><div class="n">2</div><div class="l">critical</div></div><div class="card" style="border-color:#d9534f"><div class="n">9</div><div class="l">high</div></div><div class="card" style="border-color:#e0a800"><div class="n">3</div><div class="l">medium</div></div><div class="card" style="border-color:#5bc0de"><div class="n">0</div><div class="l">low</div></div></div>
+<div class="cards"><div class="card" style="border-color:#b00020"><div class="n">3</div><div class="l">critical</div></div><div class="card" style="border-color:#d9534f"><div class="n">10</div><div class="l">high</div></div><div class="card" style="border-color:#e0a800"><div class="n">3</div><div class="l">medium</div></div><div class="card" style="border-color:#5bc0de"><div class="n">0</div><div class="l">low</div></div></div>
 <table>
   <thead><tr><th>Severity</th><th>Time (UTC)</th><th>Detection</th><th>ATT&amp;CK</th>
   <th>Source</th><th>Entity</th><th>Hits</th><th>Evidence (sample)</th></tr></thead>
@@ -38,8 +38,18 @@
           <td><code>T1110</code></td>
           <td>linux_auth</td>
           <td>src_ip=203.0.113.66</td>
-          <td class="num">9</td>
+          <td class="num">15</td>
           <td class="ev">Mar 10 08:35:06 lab-web01 sshd[7222]: Failed password for mohamed from 203.0.113.66 port 49996 ssh2<br>Mar 10 08:35:09 lab-web01 sshd[6584]: Failed password for mohamed from 203.0.113.66 port 47816 ssh2<br>Mar 10 08:35:15 lab-web01 sshd[7038]: Failed password for mohamed from 203.0.113.66 port 44697 ssh2<br>Mar 10 08:35:19 lab-web01 sshd[5914]: Failed password for mohamed from 203.0.113.66 port 46975 ssh2</td>
+        </tr>
+        <tr>
+          <td><span class="sev" style="background:#b00020">CRITICAL</span></td>
+          <td>2026-03-10 08:50:59Z</td>
+          <td><b>Remote logon success after brute force (RDP / NTLM network logon)</b><div class="triage">A successful remote logon (4624 LogonType 10, or LogonType 3 with NTLM) came from a source IP that produced 8+ failed logons (4625) in the 3 minutes before it. Treat the logged-on account as COMPROMISED (valid account obtained by brute force): disable / reset it, kill its sessions, block the source IP, and hunt for what the account did next (4720/4732, 4698, 1102, process creation). Note the targeted account in the 4624 may differ from the one in the 4625s (password spraying).</div></td>
+          <td><code>T1110 / T1078</code></td>
+          <td>win_security</td>
+          <td>src_ip=198.51.100.77</td>
+          <td class="num">13</td>
+          <td class="ev">{&quot;@timestamp&quot;: &quot;2026-03-10T08:50:05.000Z&quot;, &quot;host&quot;: &quot;LAB-WIN11&quot;, &quot;channel&quot;: &quot;Security&quot;, &quot;EventID&quot;: 4625, &quot;TargetUserName&quot;: &quot;administrator&quot;, &quot;LogonType&quot;: 10, &quot;IpA<br>{&quot;@timestamp&quot;: &quot;2026-03-10T08:50:09.000Z&quot;, &quot;host&quot;: &quot;LAB-WIN11&quot;, &quot;channel&quot;: &quot;Security&quot;, &quot;EventID&quot;: 4625, &quot;TargetUserName&quot;: &quot;administrator&quot;, &quot;LogonType&quot;: 10, &quot;IpA<br>{&quot;@timestamp&quot;: &quot;2026-03-10T08:50:16.000Z&quot;, &quot;host&quot;: &quot;LAB-WIN11&quot;, &quot;channel&quot;: &quot;Security&quot;, &quot;EventID&quot;: 4625, &quot;TargetUserName&quot;: &quot;administrator&quot;, &quot;LogonType&quot;: 10, &quot;IpA<br>{&quot;@timestamp&quot;: &quot;2026-03-10T08:50:21.000Z&quot;, &quot;host&quot;: &quot;LAB-WIN11&quot;, &quot;channel&quot;: &quot;Security&quot;, &quot;EventID&quot;: 4625, &quot;TargetUserName&quot;: &quot;administrator&quot;, &quot;LogonType&quot;: 10, &quot;IpA</td>
         </tr>
         <tr>
           <td><span class="sev" style="background:#b00020">CRITICAL</span></td>
@@ -58,7 +68,7 @@
           <td><code>T1110</code></td>
           <td>linux_auth</td>
           <td>src_ip=203.0.113.66</td>
-          <td class="num">8</td>
+          <td class="num">14</td>
           <td class="ev">Mar 10 08:35:06 lab-web01 sshd[7222]: Failed password for mohamed from 203.0.113.66 port 49996 ssh2<br>Mar 10 08:35:09 lab-web01 sshd[6584]: Failed password for mohamed from 203.0.113.66 port 47816 ssh2<br>Mar 10 08:35:15 lab-web01 sshd[7038]: Failed password for mohamed from 203.0.113.66 port 44697 ssh2<br>Mar 10 08:35:19 lab-web01 sshd[5914]: Failed password for mohamed from 203.0.113.66 port 46975 ssh2</td>
         </tr>
         <tr>
@@ -68,16 +78,16 @@
           <td><code>T1110</code></td>
           <td>win_security</td>
           <td>src_ip=198.51.100.77</td>
-          <td class="num">8</td>
+          <td class="num">12</td>
           <td class="ev">{&quot;@timestamp&quot;: &quot;2026-03-10T08:50:05.000Z&quot;, &quot;host&quot;: &quot;LAB-WIN11&quot;, &quot;channel&quot;: &quot;Security&quot;, &quot;EventID&quot;: 4625, &quot;TargetUserName&quot;: &quot;administrator&quot;, &quot;LogonType&quot;: 10, &quot;IpA<br>{&quot;@timestamp&quot;: &quot;2026-03-10T08:50:09.000Z&quot;, &quot;host&quot;: &quot;LAB-WIN11&quot;, &quot;channel&quot;: &quot;Security&quot;, &quot;EventID&quot;: 4625, &quot;TargetUserName&quot;: &quot;administrator&quot;, &quot;LogonType&quot;: 10, &quot;IpA<br>{&quot;@timestamp&quot;: &quot;2026-03-10T08:50:16.000Z&quot;, &quot;host&quot;: &quot;LAB-WIN11&quot;, &quot;channel&quot;: &quot;Security&quot;, &quot;EventID&quot;: 4625, &quot;TargetUserName&quot;: &quot;administrator&quot;, &quot;LogonType&quot;: 10, &quot;IpA<br>{&quot;@timestamp&quot;: &quot;2026-03-10T08:50:21.000Z&quot;, &quot;host&quot;: &quot;LAB-WIN11&quot;, &quot;channel&quot;: &quot;Security&quot;, &quot;EventID&quot;: 4625, &quot;TargetUserName&quot;: &quot;administrator&quot;, &quot;LogonType&quot;: 10, &quot;IpA</td>
         </tr>
         <tr>
           <td><span class="sev" style="background:#d9534f">HIGH</span></td>
           <td>2026-03-10 08:58:08Z</td>
-          <td><b>New local account added to Administrators</b><div class="triage">A local account was created (EventID 4720) and shortly after added to the Administrators group (EventID 4732) on the same host. Confirm this change was authorized; attackers create admin accounts for persistence and privilege.</div></td>
+          <td><b>New local account added to Administrators</b><div class="triage">An account was created (EventID 4720) and the SAME account (4720 TargetSid == 4732 MemberSid) was added to the local Administrators group within 2 minutes. Confirm the change was authorized; attackers create admin accounts for persistence and privilege. Adding an existing account to Administrators does not trigger this rule (review 4732 on its own for that).</div></td>
           <td><code>T1136.001 / T1098</code></td>
           <td>win_security</td>
-          <td>host=LAB-WIN11</td>
+          <td>account_sid=S-1-5-21-1111111111-2222222222-3333333333-1005</td>
           <td class="num">2</td>
           <td class="ev">{&quot;@timestamp&quot;: &quot;2026-03-10T08:58:00.000Z&quot;, &quot;host&quot;: &quot;LAB-WIN11&quot;, &quot;channel&quot;: &quot;Security&quot;, &quot;EventID&quot;: 4720, &quot;TargetUserName&quot;: &quot;svc_helper&quot;, &quot;TargetSid&quot;: &quot;S-1-5-21-1<br>{&quot;@timestamp&quot;: &quot;2026-03-10T08:58:08.000Z&quot;, &quot;host&quot;: &quot;LAB-WIN11&quot;, &quot;channel&quot;: &quot;Security&quot;, &quot;EventID&quot;: 4732, &quot;TargetUserName&quot;: &quot;Administrators&quot;, &quot;TargetSid&quot;: &quot;S-1-5-</td>
         </tr>
@@ -104,7 +114,7 @@
         <tr>
           <td><span class="sev" style="background:#d9534f">HIGH</span></td>
           <td>2026-03-10 09:05:07Z</td>
-          <td><b>Web shell-like request in web access logs</b><div class="triage">A request targeting a PHP endpoint with command-execution style parameters (cmd=, whoami, /uploads/...). Possible web shell interaction. Inspect the web root for unauthorized .php files, review the source IP&#x27;s full request history, and check server-side process execution.</div></td>
+          <td><b>Web shell interaction (behaviour-based) in web access logs</b><div class="triage">Behavioural web shell indicator: an OS command passed in a command-style parameter, a PHP code-execution / encoded payload, or a successful POST to a script inside an upload directory. Inspect the web root (especially upload folders) for unauthorized scripts, pull the source IP&#x27;s full request history and user agent, and check the web server&#x27;s child processes (Sysmon EID 1 / auditd) for whoami/id/uname spawned by the web server user.</div></td>
           <td><code>T1505.003</code></td>
           <td>apache</td>
           <td>192.0.2.44</td>
@@ -114,7 +124,7 @@
         <tr>
           <td><span class="sev" style="background:#d9534f">HIGH</span></td>
           <td>2026-03-10 09:05:17Z</td>
-          <td><b>Web shell-like request in web access logs</b><div class="triage">A request targeting a PHP endpoint with command-execution style parameters (cmd=, whoami, /uploads/...). Possible web shell interaction. Inspect the web root for unauthorized .php files, review the source IP&#x27;s full request history, and check server-side process execution.</div></td>
+          <td><b>Web shell interaction (behaviour-based) in web access logs</b><div class="triage">Behavioural web shell indicator: an OS command passed in a command-style parameter, a PHP code-execution / encoded payload, or a successful POST to a script inside an upload directory. Inspect the web root (especially upload folders) for unauthorized scripts, pull the source IP&#x27;s full request history and user agent, and check the web server&#x27;s child processes (Sysmon EID 1 / auditd) for whoami/id/uname spawned by the web server user.</div></td>
           <td><code>T1505.003</code></td>
           <td>apache</td>
           <td>192.0.2.44</td>
@@ -124,12 +134,22 @@
         <tr>
           <td><span class="sev" style="background:#d9534f">HIGH</span></td>
           <td>2026-03-10 09:05:29Z</td>
-          <td><b>Web shell-like request in web access logs</b><div class="triage">A request targeting a PHP endpoint with command-execution style parameters (cmd=, whoami, /uploads/...). Possible web shell interaction. Inspect the web root for unauthorized .php files, review the source IP&#x27;s full request history, and check server-side process execution.</div></td>
+          <td><b>Web shell interaction (behaviour-based) in web access logs</b><div class="triage">Behavioural web shell indicator: an OS command passed in a command-style parameter, a PHP code-execution / encoded payload, or a successful POST to a script inside an upload directory. Inspect the web root (especially upload folders) for unauthorized scripts, pull the source IP&#x27;s full request history and user agent, and check the web server&#x27;s child processes (Sysmon EID 1 / auditd) for whoami/id/uname spawned by the web server user.</div></td>
           <td><code>T1505.003</code></td>
           <td>apache</td>
           <td>192.0.2.44</td>
           <td class="num">1</td>
           <td class="ev">192.0.2.44 - - [10/Mar/2026:09:05:29 +0000] &quot;POST /wp-content/uploads/evil.php HTTP/1.1&quot; 200 100 &quot;-&quot; &quot;curl/7.88.1&quot;</td>
+        </tr>
+        <tr>
+          <td><span class="sev" style="background:#d9534f">HIGH</span></td>
+          <td>2026-03-10 09:05:34Z</td>
+          <td><b>Web shell interaction (behaviour-based) in web access logs</b><div class="triage">Behavioural web shell indicator: an OS command passed in a command-style parameter, a PHP code-execution / encoded payload, or a successful POST to a script inside an upload directory. Inspect the web root (especially upload folders) for unauthorized scripts, pull the source IP&#x27;s full request history and user agent, and check the web server&#x27;s child processes (Sysmon EID 1 / auditd) for whoami/id/uname spawned by the web server user.</div></td>
+          <td><code>T1505.003</code></td>
+          <td>apache</td>
+          <td>192.0.2.44</td>
+          <td class="num">1</td>
+          <td class="ev">192.0.2.44 - - [10/Mar/2026:09:05:34 +0000] &quot;GET /uploads/shell.php?cmd=Y2F0IC9ldGMvcGFzc3dk HTTP/1.1&quot; 200 88 &quot;-&quot; &quot;curl/7.88.1&quot;</td>
         </tr>
         <tr>
           <td><span class="sev" style="background:#d9534f">HIGH</span></td>
@@ -168,7 +188,7 @@
           <td><code>T1046</code></td>
           <td>sysmon</td>
           <td>src_ip=203.0.113.90</td>
-          <td class="num">15</td>
+          <td class="num">21</td>
           <td class="ev">dest_port=21<br>dest_port=22<br>dest_port=23<br>dest_port=25</td>
         </tr></tbody>
 </table>

@@ -1,0 +1,46 @@
+id: rdp_success_after_bruteforce
+name: Remote logon success after brute force (RDP / NTLM network logon)
+attack: T1110 / T1078
+severity: critical
+type: sequence
+group_by: [src_ip]
+window_seconds: 180
+steps:
+  # same failure definition as rule 02 (rdp_bruteforce): 4625, LogonType 3 or 10
+  - match:
+      all:
+        - field: source
+          equals: win_security
+        - field: event_id
+          equals: 4625
+        - field: LogonType
+          in: [3, 10]
+    min_count: 8
+  # success: RDP (LogonType 10), or a network logon (3) authenticated with NTLM.
+  # With NLA (the Windows default) the credential check of an RDP session is a
+  # type-3 logon, and NTLM from an outside IP is also what SMB/WinRM password
+  # guessing or pass-the-hash produce. Kerberos type-3 logons (normal domain
+  # traffic) are excluded to limit noise.
+  - match:
+      all:
+        - field: source
+          equals: win_security
+        - field: event_id
+          equals: 4624
+      any:
+        - field: LogonType
+          equals: 10
+        - all:
+            - field: LogonType
+              equals: 3
+            - field: AuthenticationPackageName
+              equals: NTLM
+    min_count: 1
+triage: >
+  A successful remote logon (4624 LogonType 10, or LogonType 3 with NTLM) came
+  from a source IP that produced 8+ failed logons (4625) in the 3 minutes
+  before it. Treat the logged-on account as COMPROMISED (valid account obtained
+  by brute force): disable / reset it, kill its sessions, block the source IP,
+  and hunt for what the account did next (4720/4732, 4698, 1102, process
+  creation). Note the targeted account in the 4624 may differ from the one in
+  the 4625s (password spraying).

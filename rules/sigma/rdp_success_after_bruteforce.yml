@@ -1,0 +1,65 @@
+title: Windows Remote Logon Success (base event)
+id: 36d98781-85dd-4375-a1f7-2a764022ba27
+name: lab_win_remote_logon_success
+status: experimental
+description: >
+  Successful Windows logon (EventID 4624) of type 10 (RemoteInteractive / RDP), or of type 3 (network) authenticated
+  with NTLM. With NLA, the credential check of an RDP session is a type-3 logon; NTLM type-3 logons from outside
+  are also what SMB/WinRM password guessing and pass-the-hash produce. Kerberos type-3 logons are excluded to limit
+  normal domain noise. Base rule for the correlation below; not alerted on its own.
+references:
+  - https://learn.microsoft.com/en-us/previous-versions/windows/it-pro/windows-10/security/threat-protection/auditing/event-4624
+author: Mohamed Elansari
+date: 2026-10-03
+logsource:
+  product: windows
+  service: security
+detection:
+  selection_rdp:
+    EventID: 4624
+    LogonType: 10
+  selection_ntlm:
+    EventID: 4624
+    LogonType: 3
+    AuthenticationPackageName: 'NTLM'
+  condition: 1 of selection_*
+fields:
+  - IpAddress
+  - TargetUserName
+  - LogonType
+  - AuthenticationPackageName
+falsepositives:
+  - Every normal RDP or NTLM network logon (expected; base rule only)
+level: informational
+---
+title: Remote Logon Success After Brute Force From Same Source
+id: 421e2347-06bc-4b0d-af6e-f197f43e3b85
+status: experimental
+description: >
+  Detects a successful remote logon (4624 LogonType 10, or LogonType 3 with NTLM) from a source IP that just
+  triggered the Windows logon brute-force correlation (8+ failed 4625 of type 3/10 in 2 minutes), within
+  3 minutes. The brute force found a valid password: the account must be treated as compromised.
+  Chained Sigma v2 correlation: references lab_win_failed_logon_burst defined in rdp_bruteforce.yml,
+  so check/convert both files together.
+references:
+  - https://attack.mitre.org/techniques/T1110/
+  - https://attack.mitre.org/techniques/T1078/
+author: Mohamed Elansari
+date: 2026-10-03
+correlation:
+  type: temporal_ordered
+  rules:
+    - lab_win_failed_logon_burst
+    - lab_win_remote_logon_success
+  group-by:
+    - IpAddress
+  timespan: 3m
+falsepositives:
+  - A legitimate user who mistyped the password 8+ times and then logged in (rare above the threshold)
+  - A shared NAT / VPN egress IP used both by an attacker and by a legitimate user
+level: critical
+tags:
+  - attack.credential-access
+  - attack.initial-access
+  - attack.t1110
+  - attack.t1078

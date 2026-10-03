@@ -17,8 +17,10 @@
 ## 1. Résumé exécutif
 
 Le 10 mars 2026, le moteur de détection du lab a identifié une **attaque par
-force brute SSH réussie** sur l'hôte Linux `lab-web01`, suivie, sur l'hôte Windows
-`LAB-WIN11`, de la **création d'un compte local ajouté au groupe Administrateurs**,
+force brute SSH réussie** sur l'hôte Linux `lab-web01` et une **force brute RDP
+réussie** sur l'hôte Windows `LAB-WIN11` (connexion RDP du compte `administrator`
+depuis l'IP de la force brute), suivie de la **création d'un compte local ajouté
+au groupe Administrateurs**,
 puis d'une série d'actions de **persistance** et d'**évasion de défense**
 (tâche planifiée, PowerShell encodé, désactivation de Microsoft Defender,
 effacement du journal de sécurité) et d'une **activité réseau de scan** et de
@@ -38,7 +40,7 @@ en jeu (exercice).
 | 08:35:06 – 08:35:34 | lab-web01 | 14 échecs d'authentification SSH pour `mohamed` depuis `203.0.113.66` | SSH brute force (T1110) |
 | 08:36:00 | lab-web01 | **Connexion SSH réussie** pour `mohamed` depuis `203.0.113.66` | Succès après échecs multiples (T1110) |
 | 08:50:05 – 08:50:54 | LAB-WIN11 | 12 échecs de connexion RDP (`administrator`) depuis `198.51.100.77` | RDP brute force (T1110) |
-| 08:50:59 | LAB-WIN11 | **Connexion RDP réussie** (4624, LogonType 10) pour `administrator` depuis `198.51.100.77` | **Aucune règle** — trouvé en investigation (voir §9) |
+| 08:50:59 | LAB-WIN11 | **Connexion RDP réussie** (4624, LogonType 10) pour `administrator` depuis `198.51.100.77` | **Succès distant après force brute** (T1110 + T1078) — règle n°12 `rdp_success_after_bruteforce`, criticité critique (voir §9) |
 | 08:58:00 | LAB-WIN11 | Création du compte local `svc_helper` (4720) | Nouveau compte (T1136.001) |
 | 08:58:08 | LAB-WIN11 | `svc_helper` ajouté au groupe **Administrators** (4732) | Compte admin créé (T1098) |
 | 09:00:00 | LAB-WIN11 | PowerShell `-EncodedCommand` | PowerShell encodé (T1059.001) |
@@ -46,7 +48,7 @@ en jeu (exercice).
 | 09:02:00 | LAB-WIN11 | **Journal de sécurité effacé** (1102) | Effacement de journaux (T1685.005, ex-T1070.001) |
 | 09:03:00 – 09:03:10 | LAB-WIN11 | 21 ports distincts contactés depuis `203.0.113.90` | Scan de ports (T1046) |
 | 09:04:00 | LAB-WIN11 | `Set-MpPreference -DisableRealtimeMonitoring $true` | Defender désactivé (T1685, ex-T1562.001) |
-| 09:05:07 – 09:05:29 | lab-web01 | Requêtes web type web shell depuis `192.0.2.44` | Web shell (T1505.003) |
+| 09:05:07 – 09:05:34 | lab-web01 | 4 requêtes web shell depuis `192.0.2.44` (commande `whoami`/`id` en paramètre, POST vers un `.php` dans `uploads/`, commande encodée en base64) | Web shell, règle comportementale (T1505.003) |
 | 09:06:00 | LAB-WIN11 | WINWORD.EXE lance `cmd.exe` → PowerShell | Office lance un shell (T1204.002) |
 
 ---
@@ -75,6 +77,13 @@ en jeu (exercice).
 - `POST /uploads/shell.php?cmd=whoami`
 - `GET /images/up.php?cmd=id`
 - `POST /wp-content/uploads/evil.php`
+- `GET /uploads/shell.php?cmd=Y2F0IC9ldGMvcGFzc3dk` (base64 de `cat /etc/passwd`)
+
+> Ces noms de fichiers sont des **IOC de cet incident**, pas de la logique de
+> détection : depuis la révision 1, la règle web shell détecte le
+> **comportement** (commande système dans un paramètre `cmd=`/`exec=`/…, POST
+> réussi vers un script dans un dossier d'upload, charge encodée) et ne contient
+> plus aucun nom de fichier.
 
 ---
 
@@ -144,8 +153,11 @@ Actions immédiates recommandées :
   être une alerte critique (c'est déjà le cas, règle T1685 / ex-T1562.001). Vérifier
   aussi si la commande a réellement abouti (Defender EventID 5001,
   `Get-MpComputerStatus`) : avec Tamper Protection elle peut avoir été bloquée.
-- **Combler l'angle mort « succès RDP après force brute » :** ajouter une règle
-  séquence 4625×N → 4624 (LogonType 3/10) même IP, comme pour SSH.
+- **Angle mort « succès RDP après force brute » : comblé (révision 1).** La règle
+  n°12 corrèle ≥ 8 échecs 4625 (LogonType 3/10) puis un 4624 réussi (LogonType 10,
+  ou 3 avec NTLM) depuis la même IP en 180 s. Elle existe dans les trois formats
+  (moteur, Sigma `temporal_ordered`, Wazuh 100122/100123) ; la version Wazuh reste
+  à rejouer sur un vrai manager (`docs/WAZUH-VALIDATION.md`).
 - **Principe du moindre privilège :** surveiller toute création de compte admin
   (déjà couvert, T1098/T1136).
 
@@ -153,14 +165,25 @@ Actions immédiates recommandées :
 
 ## 9. Couverture de détection
 
-Les 11 détections du lab se sont déclenchées sur leur étape respective (voir
-`reports/triage.html`). **Une étape clé n'est couverte par aucune règle :** la
-connexion RDP réussie de `198.51.100.77` sur `administrator` (4624 LogonType 10,
-08:50:59), juste après la force brute. C'est très probablement le vrai vecteur
-d'accès à `LAB-WIN11` (la force brute SSH visait l'hôte Linux) ; elle a été
-retrouvée en investigation en pivotant sur l'IP source de l'alerte RDP. La règle
-« succès après échecs » n'existe aujourd'hui que pour SSH — c'est le premier
-point d'amélioration de la couverture.
+Les **12 détections** du lab se sont déclenchées sur leur étape respective (voir
+`reports/triage.html` : 307 évènements, 16 alertes). La connexion RDP réussie de
+`198.51.100.77` sur `administrator` (4624 LogonType 10, 08:50:59), juste après la
+force brute, **est maintenant détectée** par la règle n°12
+`rdp_success_after_bruteforce` (alerte critique, 13 évènements en preuve : 12
+échecs + le succès). C'est très probablement le vrai vecteur d'accès à
+`LAB-WIN11` (la force brute SSH visait l'hôte Linux), et c'est ce compte qui crée
+`svc_helper` 7 minutes plus tard. Lors de la première version du rapport, cette
+étape n'était couverte par aucune règle et avait été retrouvée en pivotant sur
+l'IP source de l'alerte RDP.
+
+Limites à garder en tête :
+- La règle n°12 a été testée sur le moteur offline (cas positifs et négatifs :
+  7 échecs, succès Kerberos, autre IP, succès avant les échecs, fenêtre de 180 s
+  contre 181 s) et validée en Sigma (`sigma check`). La version **Wazuh**
+  (100122/100123) n'a **pas encore été exécutée** sur un manager réel.
+- Côté Wazuh, la règle « nouveau compte admin » (100131) corrèle par hôte et non
+  par SID ; elle peut se déclencher si un compte A est créé puis un compte B
+  différent ajouté aux Administrateurs. Le moteur et Sigma joignent sur le SID.
 
 Remarque de méthode : l'ordre des évènements (Office → shell à 09:06, *après* la
 désactivation de Defender) est celui du jeu de données synthétique ; dans un

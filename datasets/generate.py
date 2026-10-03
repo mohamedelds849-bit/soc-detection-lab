@@ -96,6 +96,8 @@ def gen_benign_windows():
             "@timestamp": iso(t), "host": WIN_HOST, "channel": "Security",
             "EventID": 4624, "TargetUserName": user, "LogonType": logon_type,
             "IpAddress": ip, "WorkstationName": WIN_HOST,
+            # workgroup lab host: network logons are NTLM, interactive ones Negotiate
+            "AuthenticationPackageName": "NTLM" if logon_type == 3 else "Negotiate",
         })
         if rng.random() < 0.1:
             # rare single failed logon - benign
@@ -154,6 +156,82 @@ def gen_benign_apache():
                                 f'"GET {path} HTTP/1.1" {status} {size} "-" "{rng.choice(uas)}"'))
 
 
+def gen_benign_hard_negatives():
+    """Benign look-alikes placed just UNDER or beside the detection logic, so the
+    0-false-positive claim is tested against near misses, not only easy noise.
+    Fixed timestamps and no rng draws: the rest of the dataset is unchanged."""
+    def at(minutes, seconds=0):
+        return BASE + timedelta(minutes=minutes, seconds=seconds)
+
+    # SSH: 7 failures then a success (one below the threshold of 8)
+    for i in range(7):
+        t = at(10, i * 5)
+        linux_lines.append((t, f"{syslog_ts(t)} {LINUX_HOST} sshd[4242]: "
+                               f"Failed password for backup from 10.10.0.31 port {50100 + i} ssh2"))
+    t = at(10, 40)
+    linux_lines.append((t, f"{syslog_ts(t)} {LINUX_HOST} sshd[4243]: "
+                           f"Accepted password for backup from 10.10.0.31 port 50110 ssh2"))
+
+    # RDP: caps-lock user, 7 failures then a successful RDP logon (below 8)
+    for i in range(7):
+        win_events.append({
+            "@timestamp": iso(at(12, i * 5)), "host": WIN_HOST, "channel": "Security",
+            "EventID": 4625, "TargetUserName": "yassine", "LogonType": 10,
+            "IpAddress": "10.10.0.30", "Status": "0xC000006D", "SubStatus": "0xC000006A",
+        })
+    win_events.append({
+        "@timestamp": iso(at(12, 40)), "host": WIN_HOST, "channel": "Security",
+        "EventID": 4624, "TargetUserName": "yassine", "LogonType": 10,
+        "IpAddress": "10.10.0.30", "AuthenticationPackageName": "Negotiate",
+    })
+    # Network share: 3 failures then an NTLM type-3 success
+    for i in range(3):
+        win_events.append({
+            "@timestamp": iso(at(14, i * 4)), "host": WIN_HOST, "channel": "Security",
+            "EventID": 4625, "TargetUserName": "sara", "LogonType": 3,
+            "IpAddress": "10.10.0.32", "Status": "0xC000006D", "SubStatus": "0xC000006A",
+        })
+    win_events.append({
+        "@timestamp": iso(at(14, 20)), "host": WIN_HOST, "channel": "Security",
+        "EventID": 4624, "TargetUserName": "sara", "LogonType": 3,
+        "IpAddress": "10.10.0.32", "AuthenticationPackageName": "NTLM",
+    })
+
+    # IT change on the same host within 30s: create intern01 (NOT made admin)
+    # and add the EXISTING account sara to Administrators. A host-based join
+    # would wrongly call this "new account added to admins".
+    win_events.append({
+        "@timestamp": iso(at(20)), "host": WIN_HOST, "channel": "Security",
+        "EventID": 4720, "TargetUserName": "intern01",
+        "TargetSid": "S-1-5-21-1111111111-2222222222-3333333333-1006",
+        "SubjectUserName": "administrator",
+    })
+    win_events.append({
+        "@timestamp": iso(at(20, 30)), "host": WIN_HOST, "channel": "Security",
+        "EventID": 4732, "TargetUserName": "Administrators", "TargetSid": "S-1-5-32-544",
+        "MemberName": "-", "MemberSid": "S-1-5-21-1111111111-2222222222-3333333333-1002",
+        "SubjectUserName": "administrator",
+    })
+
+    # Web: words and parameters that look like web shell tokens but are not
+    benign_web = [
+        ("10.10.0.5", "GET /search?q=evaluation HTTP/1.1", 200),
+        ("10.10.0.6", "GET /search?q=whoami+command+linux HTTP/1.1", 200),
+        ("10.10.0.12", "GET /blog/recipe-1?c=dark-mode HTTP/1.1", 200),
+        ("192.168.56.20", "GET /product?id=42 HTTP/1.1", 200),
+        ("10.10.0.5", "GET /docs/shell-scripting-basics HTTP/1.1", 200),
+        ("10.10.0.6", "POST /contact HTTP/1.1", 200),
+        ("10.10.0.12", "POST /wp-admin/async-upload.php HTTP/1.1", 200),
+        ("192.168.56.20", "GET /wp-content/uploads/2026/03/photo.jpg HTTP/1.1", 200),
+        ("10.10.0.5", "POST /uploads/avatar.png HTTP/1.1", 201),
+    ]
+    for i, (ip, req, status) in enumerate(benign_web):
+        t = at(25, i * 7)
+        apache_lines.append((t, f'{ip} - - [{t.strftime("%d/%b/%Y:%H:%M:%S +0000")}] '
+                                f'"{req}" {status} {1200 + i} "-" '
+                                f'"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"'))
+
+
 # ---------------------------------------------------------------------------
 # Attack patterns (each maps to one or more rules)
 # ---------------------------------------------------------------------------
@@ -186,12 +264,12 @@ def atk_rdp_bruteforce():
             "EventID": 4625, "TargetUserName": victim, "LogonType": 10,
             "IpAddress": ATTACKER_RDP_IP, "Status": "0xC000006D", "SubStatus": "0xC000006A",
         })
-    # successful RDP logon after the burst -> success-after-failures (Windows)
+    # successful RDP logon after the burst -> rule 12 rdp_success_after_bruteforce
     t += timedelta(seconds=5)
     win_events.append({
         "@timestamp": iso(t), "host": WIN_HOST, "channel": "Security",
         "EventID": 4624, "TargetUserName": victim, "LogonType": 10,
-        "IpAddress": ATTACKER_RDP_IP,
+        "IpAddress": ATTACKER_RDP_IP, "AuthenticationPackageName": "Negotiate",
     })
 
 
@@ -291,6 +369,8 @@ def atk_web_shell():
         'POST /uploads/shell.php?cmd=whoami HTTP/1.1',
         'GET /images/up.php?cmd=id HTTP/1.1',
         'POST /wp-content/uploads/evil.php HTTP/1.1',
+        # base64 command in a cmd= parameter ("cat /etc/passwd" - harmless lab string)
+        'GET /uploads/shell.php?cmd=Y2F0IC9ldGMvcGFzc3dk HTTP/1.1',
     ]
     for r in reqs:
         t += timedelta(seconds=rng.randint(3, 12))
@@ -327,6 +407,7 @@ def build(outdir: str, include_attacks: bool = True):
     gen_benign_windows()
     gen_benign_sysmon()
     gen_benign_apache()
+    gen_benign_hard_negatives()
 
     if include_attacks:
         atk_ssh_bruteforce()

@@ -11,12 +11,21 @@ Loads simple YAML rules and runs them over a list of normalized events
   distinct   : like threshold, but counts DISTINCT values of `distinct_field`
                (used for port scans: many distinct destination ports).
   sequence   : ordered `steps` (each with its own match + optional min_count),
-               all within `window_seconds`, grouped by `group_by`
-               (used for "success after many failures" and "new admin account").
+               grouped by `group_by`. Evaluated by LOOK-BACK from every event
+               that matches the final step: the earlier steps must have been
+               satisfied, in order, inside the `window_seconds` that end at
+               that event. Steps may declare `alias: {key: field}` so that
+               the same correlation key is read from a different field in
+               each step (like Sigma correlation aliases), e.g. the account
+               SID is TargetSid in 4720 but MemberSid in 4732.
 
 Field matching operators (per condition):
   equals, not_equals, in, contains, icontains (case-insensitive contains),
-  regex, startswith.
+  regex, startswith, exists.
+
+Match blocks are {all: [...]} and/or {any: [...]}. An item of a list can
+itself be a nested block ({all: ...} / {any: ...}), which allows
+"A and (B or (C and D))".
 
 An Alert carries the ATT&CK id, severity, matched evidence and a triage note.
 """
@@ -59,18 +68,24 @@ def match_condition(event: dict, cond: dict) -> bool:
     raise ValueError(f"Unknown operator in condition: {cond}")
 
 
-def match_block(event: dict, block: dict) -> bool:
-    """A match block is {all: [...]} and/or {any: [...]} of conditions."""
+def _match_item(event: dict, item) -> bool:
+    if isinstance(item, dict) and "field" in item:
+        return match_condition(event, item)
+    return match_block(event, item)
+
+
+def match_block(event: dict, block) -> bool:
+    """A match block is {all: [...]} and/or {any: [...]}. Items may be
+    conditions or nested blocks. A bare list is treated as "all"."""
     if not block:
         return True
+    if isinstance(block, list):
+        return all(_match_item(event, c) for c in block)
     ok = True
     if "all" in block:
-        ok = ok and all(match_condition(event, c) for c in block["all"])
+        ok = ok and all(_match_item(event, c) for c in block["all"])
     if "any" in block:
-        ok = ok and any(match_condition(event, c) for c in block["any"])
-    # a bare list is treated as "all"
-    if isinstance(block, list):
-        ok = all(match_condition(event, c) for c in block)
+        ok = ok and any(_match_item(event, c) for c in block["any"])
     return ok
 
 
@@ -151,11 +166,17 @@ def run_threshold(rule: dict, events: list[dict]) -> list[Alert]:
         hit = _sliding_window_hit(times, count, window)
         if hit:
             lo, hi = hit
-            window_evs = evs[lo:hi + 1]
+            # The alert is raised when the threshold is crossed (evs[hi]); the
+            # reported count is every matching event in the window that starts
+            # at the first event of the triggering burst.
+            end = hi
+            while end + 1 < len(evs) and evs[end + 1]["ts"] - evs[lo]["ts"] <= window:
+                end += 1
+            window_evs = evs[lo:end + 1]
             alerts.append(Alert(
                 rule_id=rule["id"], name=rule["name"], attack=rule["attack"],
                 severity=rule.get("severity", "medium"), source=evs[0].get("source", "-"),
-                ts=window_evs[-1]["ts"], entity=_entity_str(keys, key),
+                ts=evs[hi]["ts"], entity=_entity_str(keys, key),
                 count=len(window_evs), triage=rule.get("triage", ""),
                 evidence=[x.get("raw", "") for x in window_evs[:5]],
             ))
@@ -181,74 +202,89 @@ def run_distinct(rule: dict, events: list[dict]) -> list[Alert]:
                 lo += 1
             distinct_vals = {evs[i].get(dfield) for i in range(lo, hi + 1)}
             if len(distinct_vals) >= count:
+                # report every distinct value seen in the window anchored at lo
+                end = hi
+                while end + 1 < len(evs) and evs[end + 1]["ts"] - evs[lo]["ts"] <= window:
+                    end += 1
+                all_vals = [evs[i].get(dfield) for i in range(lo, end + 1)]
                 alerts.append(Alert(
                     rule_id=rule["id"], name=rule["name"], attack=rule["attack"],
                     severity=rule.get("severity", "medium"), source=evs[0].get("source", "-"),
                     ts=evs[hi]["ts"], entity=_entity_str(keys, key),
-                    count=len(distinct_vals), triage=rule.get("triage", ""),
-                    evidence=[f"{dfield}={evs[i].get(dfield)}" for i in range(lo, hi + 1)][:12],
+                    count=len(set(all_vals)), triage=rule.get("triage", ""),
+                    evidence=[f"{dfield}={v}" for v in all_vals][:12],
                 ))
                 break  # one alert per group is enough
     return alerts
 
 
+def _step_key(event: dict, keys: list[str], step: dict) -> tuple:
+    alias = step.get("alias", {}) or {}
+    return tuple(event.get(alias.get(k, k)) for k in keys)
+
+
 def run_sequence(rule: dict, events: list[dict]) -> list[Alert]:
     """
-    Ordered steps within a window, grouped by group_by. Each step:
+    Ordered steps, grouped by group_by. Each step:
       match     : condition block
-      min_count : how many of this step must occur before moving on (default 1)
-    The final step must occur after the earlier steps' min_counts are met,
-    with the whole chain inside window_seconds.
+      min_count : how many events of this step are required (default 1)
+      alias     : optional {group_key: field_name} for this step
+
+    For every event E that matches the LAST step, look back over the events
+    in [E.ts - window_seconds, E.ts] that share E's correlation key. Walking
+    backwards, the step before the last must be satisfied min_count times,
+    then the step before it (strictly earlier), and so on. If every step is
+    satisfied, one alert is raised at E. Consequences:
+      - order matters: a success BEFORE the failures does not fire;
+      - the window ends at the final event, so old failures expire;
+      - every final-step event that completes the chain is its own alert.
+    The reported count is every event in that window (same key) that matches
+    one of the earlier steps, plus E itself.
     """
     keys = rule.get("group_by", [])
     window = float(rule.get("window_seconds", 300))
     steps = rule["steps"]
-    # bucket events per group, preserving time order
-    groups: dict[tuple, list[dict]] = {}
-    for e in events:
-        if any(match_block(e, s["match"]) for s in steps):
-            groups.setdefault(_group_key(e, keys), []).append(e)
+    final = len(steps) - 1
+
+    # (event, step_index, key) for every (event, step) pair that matches
+    tagged: list[tuple[dict, int, tuple]] = []
+    for e in sorted(events, key=lambda x: x["ts"]):
+        for i, s in enumerate(steps):
+            if match_block(e, s["match"]):
+                tagged.append((e, i, _step_key(e, keys, s)))
 
     alerts = []
-    for key, evs in groups.items():
-        evs.sort(key=lambda x: x["ts"])
-        step_idx = 0
+    for pos, (e, si, key) in enumerate(tagged):
+        if si != final:
+            continue
+        if keys and all(v is None for v in key):
+            continue  # no correlation key -> cannot correlate
+        start = e["ts"] - window
+        prior = [(x, xi) for (x, xi, xk) in tagged[:pos]
+                 if xk == key and xi < final and x is not e and start <= x["ts"] <= e["ts"]]
+        need = final - 1  # index of the step we are trying to satisfy
         seen = 0
-        anchor_ts = None
-        chain: list[dict] = []
-        for e in evs:
-            s = steps[step_idx]
-            if match_block(e, s["match"]):
-                if anchor_ts is None:
-                    anchor_ts = e["ts"]
-                # reset if window exceeded
-                if e["ts"] - anchor_ts > window:
-                    anchor_ts = e["ts"]
-                    seen = 0
-                    step_idx = 0
-                    chain = []
-                    s = steps[step_idx]
-                    if not match_block(e, s["match"]):
-                        continue
+        for x, xi in reversed(prior):
+            if need < 0:
+                break
+            if xi == need:
                 seen += 1
-                chain.append(e)
-                if seen >= int(s.get("min_count", 1)):
-                    step_idx += 1
+                if seen >= int(steps[need].get("min_count", 1)):
+                    need -= 1
                     seen = 0
-                    if step_idx >= len(steps):
-                        alerts.append(Alert(
-                            rule_id=rule["id"], name=rule["name"], attack=rule["attack"],
-                            severity=rule.get("severity", "medium"),
-                            source=chain[-1].get("source", "-"),
-                            ts=chain[-1]["ts"], entity=_entity_str(keys, key),
-                            count=len(chain), triage=rule.get("triage", ""),
-                            evidence=[x.get("raw", "") for x in chain[:6]],
-                        ))
-                        # reset to allow detecting a later repeat
-                        step_idx = 0
-                        seen = 0
-                        anchor_ts = None
-                        chain = []
+        if need >= 0:
+            continue
+        chain = [x for x, _ in prior] + [e]
+        evidence = [x.get("raw", "") for x in chain]
+        if len(evidence) > 6:
+            evidence = evidence[:5] + [evidence[-1]]
+        alerts.append(Alert(
+            rule_id=rule["id"], name=rule["name"], attack=rule["attack"],
+            severity=rule.get("severity", "medium"), source=e.get("source", "-"),
+            ts=e["ts"], entity=_entity_str(keys, key),
+            count=len(chain), triage=rule.get("triage", ""),
+            evidence=evidence,
+        ))
     return alerts
 
 

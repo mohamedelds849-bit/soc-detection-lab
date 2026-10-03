@@ -1,18 +1,33 @@
-title: Web Shell-Like Request In Access Log
+title: Web Shell Interaction (Behaviour-Based) In Access Log
 id: 076ca304-27f3-46b0-9a34-ec083488b7a3
 status: experimental
-description: Detects HTTP requests to PHP endpoints with command-execution style parameters or suspicious upload paths, indicating possible web shell interaction.
+description: >
+  Behaviour-based web shell detection, with no file-name list. Fires on any one of: (1) a command-execution
+  style parameter (cmd, exec, command, execute, run, c) whose value is an OS discovery command such as
+  whoami, id, uname, hostname, ipconfig, "net user" or "cat /etc/passwd"; (2) a PHP code-execution call
+  (eval(, assert(, system(, passthru(, shell_exec(, base64_decode() or a long base64 value in a command
+  parameter; (3) a successful POST to a .php/.phtml/.phar file under an upload-type directory. Words such as
+  "evaluation" or "whoami" inside an ordinary search parameter do not match.
 references:
   - https://attack.mitre.org/techniques/T1505/003/
 author: Mohamed Elansari
 date: 2026-03-10
+modified: 2026-10-03
 logsource:
   category: webserver
 detection:
-  selection_param:
-    cs-uri-query|re: '(?i)(cmd=|exec=|eval|whoami)'
-  selection_path:
-    cs-uri-stem|re: '(?i)(shell\.php|/uploads/.+\.php|up\.php|evil\.php)'
+  selection_cmd_param:
+    cs-uri-query|re: '(?i)(?:^|&)(?:cmd|exec|command|execute|run|c)=(?:[^&]*?(?:\+|%20|%3B|%7C|;|\|))?(?:whoami|id|uname|hostname|ipconfig|ifconfig|pwd|net(?:\+|%20)+(?:user|localgroup)|cat(?:\+|%20)+(?:/|%2F)etc(?:/|%2F)passwd|ls(?:\+|%20)+-[a-z]*)(?=$|&|\+|%20|%3B|%7C)'
+  selection_code_exec:
+    cs-uri-query|re: '(?i)\b(?:eval|assert|system|passthru|shell_exec|base64_decode)(?:\(|%28)|(?:^|&)(?:cmd|exec|command|execute)=(?=[^&]*\d)(?:[A-Za-z0-9+/]|%2B|%2F){16,}(?:=|%3D){0,2}(?:&|$)'
+  selection_upload_post:
+    cs-method: 'POST'
+    cs-uri-stem|re: '(?i)/(?:uploads?|files|media|tmp)/(?:.*/)?[^/]+\.(?:php\d?|phtml|phar)$'
+    sc-status:
+      - 200
+      - 201
+      - 202
+      - 204
   condition: 1 of selection_*
 fields:
   - c-ip
@@ -20,9 +35,10 @@ fields:
   - cs-uri-stem
   - cs-uri-query
   - sc-status
+  - cs-user-agent
 falsepositives:
-  - Legitimate application that passes a parameter literally named cmd or containing "eval"
-  - Legitimate PHP upload handlers under /uploads/
+  - Admin tools that legitimately take a parameter named cmd/exec with a value such as "id" (rare; baseline them)
+  - Applications that store uploaded PHP plugins under an uploads/ path (bad practice, but it exists)
 level: high
 tags:
   - attack.persistence

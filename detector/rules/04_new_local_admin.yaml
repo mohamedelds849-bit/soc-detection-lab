@@ -3,28 +3,36 @@ name: New local account added to Administrators
 attack: T1136.001 / T1098
 severity: high
 type: sequence
-group_by: [host]
+# Correlate on the ACCOUNT, not on the host: the SID of the created account is
+# TargetSid in 4720 but MemberSid in 4732 (in 4732, TargetSid is the GROUP).
+# Same join as the Sigma correlation alias `account_sid`.
+group_by: [account_sid]
 window_seconds: 120
 steps:
-  - match:
+  - alias:
+      account_sid: TargetSid
+    match:
       all:
         - field: source
           equals: win_security
         - field: event_id
           equals: 4720
     min_count: 1
-  - match:
+  - alias:
+      account_sid: MemberSid
+    match:
       all:
         - field: source
           equals: win_security
         - field: event_id
           equals: 4732
-        # 4732: TargetSid/TargetUserName = the GROUP, MemberSid = the account added.
         # S-1-5-32-544 = BUILTIN\Administrators (language-independent).
         - field: TargetSid
           equals: S-1-5-32-544
     min_count: 1
 triage: >
-  A local account was created (EventID 4720) and shortly after added to the
-  Administrators group (EventID 4732) on the same host. Confirm this change was
-  authorized; attackers create admin accounts for persistence and privilege.
+  An account was created (EventID 4720) and the SAME account (4720 TargetSid ==
+  4732 MemberSid) was added to the local Administrators group within 2 minutes.
+  Confirm the change was authorized; attackers create admin accounts for
+  persistence and privilege. Adding an existing account to Administrators does
+  not trigger this rule (review 4732 on its own for that).

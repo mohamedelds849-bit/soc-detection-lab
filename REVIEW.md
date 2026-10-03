@@ -241,3 +241,82 @@ Be ready to explain:
 - The ATT&CK v19 Defense Evasion split.
 - Why "0 FP on my own synthetic baseline" is a weak claim, and how you would measure
   FP on real data. Saying this unprompted is a strong signal of seniority.
+
+---
+
+## Revision round 1 (2026-10-03) — answer to the Director audit
+
+Scope: mandatory revisions 2 to 5 of `../DIRECTOR-AUDIT.md` (soc-detection-lab).
+Revision 1 (deploy Wazuh, replay in `wazuh-logtest`, screenshots) is the
+student's own work and was **not** attempted; it is now prepared by
+`docs/WAZUH-VALIDATION.md`.
+
+### What changed
+
+| Revision | Change | Files |
+|----------|--------|-------|
+| 1 (prep only) | New per-rule checklist: line(s) to paste, expected rule id/level, masking risk, result and screenshot columns, 19 cases including negatives and the known 100131 limitation. New generator `tools/make_wazuh_samples.py` writes the replay lines in Wazuh eventchannel JSON (`datasets/wazuh_logtest/*.log`). Documents that Windows JSON does not reach rule 60000 in `wazuh-logtest` on a stock manager, and the temporary workaround used by Wazuh's own `runtests.py`. README now lists all 19 Wazuh rule IDs as untested | `docs/WAZUH-VALIDATION.md`, `tools/`, `datasets/wazuh_logtest/`, `README.md`, `docs/SETUP.md` |
+| 2 | **Detection 12 "remote logon success after brute force"** (T1110 + T1078): 8+ 4625 (type 3/10) then 4624 type 10, or type 3 with NTLM, same source IP, 180 s. Engine YAML (sequence), Sigma (`temporal_ordered` chained on `lab_win_failed_logon_burst`, new UUIDs, `sigma check` clean), Wazuh 100122 / 100123 (children of 60106, `if_matched_sid 100121`, `same_field win.eventdata.ipAddress`, level 13). Incident report: the 08:50:59 RDP logon is now detected (timeline, §8, §9) | `detector/rules/12_*.yaml`, `rules/sigma/rdp_success_after_bruteforce.yml`, `rules/wazuh/local_rules.xml`, `docs/INCIDENT-REPORT.md` |
+| 3 | Engine rule 04 now joins **4720 `TargetSid` = 4732 `MemberSid`** (new per-step `alias`, same idea as the Sigma correlation alias). Negative tests: unrelated account B added after A was created, other group (S-1-5-32-555), wrong order, 120 s vs 121 s | `detector/engine.py`, `detector/rules/04_new_local_admin.yaml`, tests |
+| 4 | Web shell rule rewritten on **behaviour**: OS command (`whoami`, `id`, `uname`, `net user`, `cat /etc/passwd`, ...) as the value of a command-style parameter; PHP code-exec call (`eval(`, `system(`, `base64_decode(`) or long base64 value in a command parameter; successful POST (2xx) to `.php/.phtml/.phar` under an upload-type directory. `up.php`, `evil.php`, `shell.php` and bare `eval` removed. Same logic in Sigma and Wazuh (100190 / 100191 / 100192). `/search?q=evaluation` and 14 other look-alikes are negative tests, run against the engine, the Sigma regexes and the Wazuh regexes | `detector/rules/10_web_shell.yaml`, `rules/sigma/web_shell.yml`, `rules/wazuh/local_rules.xml`, tests |
+| 5 | Tests: 31 -> **145**. Every alert on the attack dataset is checked for entity, number of alerts and hit count. Threshold edges with the thresholds read from the YAML (7 vs 8 SSH and RDP failures, 14 vs 15 distinct ports, 14 distinct + repeats), window edges (8th failure at 120 s vs 121 s, success at 180 s vs 181 s, port scan spread over 60 s), ordering (success before failures, 4732 before 4720, 3-step order), grouping (split IPs, other IP, other SID), NTLM vs Kerberos, logon type 2. Cross-format checks (Wazuh XML structure, Sigma UUIDs and chaining), determinism (build twice + compare with the committed dataset), replay files and checklist kept in sync | `tests/test_detector.py` |
+
+### Engine changes needed for the above
+- Match blocks accept nested `all`/`any` (needed for "type 10 OR (type 3 AND NTLM)").
+- `sequence` is now evaluated by **look-back from the final event**: the earlier
+  steps must be satisfied, in order, inside the window that ends at that event.
+  The old forward implementation anchored the window on the first failure, so
+  2 stale failures followed by a fresh burst + success could be missed (new test
+  `test_ssh_success_after_failures_old_failures_do_not_block`).
+- Threshold / distinct alerts now report every event of the triggering window
+  (SSH 14, RDP 12, port scan 21 distinct ports) instead of always reporting
+  exactly the threshold value.
+
+### Dataset
+- Still deterministic (seed 1337). New benign **near misses** with fixed
+  timestamps and no RNG draw, so every pre-existing event is byte-identical: 7 SSH
+  failures + success, 7 RDP failures + RDP logon, 3 failures + NTLM logon, an IT
+  change (intern01 created, existing account sara added to Administrators), 9 web
+  look-alikes. One attack request added (base64 command). 4624 events carry
+  `AuthenticationPackageName`.
+- Result: 307 events, 16 alerts, 12/12 detections, **0 FP on 246 benign events**.
+  Honest note: the previous rules 04 and 10 raise **3 FPs** on the new near misses
+  (host-based admin join; `eval` / `whoami` in a search parameter). The baseline is
+  still written by the rule author, so this is a robustness check, not an FP rate.
+
+### Wazuh findings from reading the 4.9.2 source (all still to be confirmed live)
+1. **The original 100110 and 100121 would most likely never have fired.** Sibling
+   rules are tried by descending level, then load order (`rules_list.c`,
+   `_OS_AddRule`). Built-in 5763 (SSH, level 10, 8/120 s, same parent 5760) and
+   60204 (Windows, level 10, 8/240 s, child of every `authentication_failed` rule)
+   match on the same event and are loaded first. Both custom rules are now
+   **children** of those built-ins (enrichment); the helper 100120 was removed.
+2. 100111 (level 12) tied with built-in 40112 (level 12, also a child of 5715)
+   and lost the tie; it is now level 13, like 100122/100123.
+3. `frequency="8"` does fire on the 8th event (the loader subtracts 2), and
+   correlation is per agent and uses reception time (`eventinfo.c`). The
+   checklist tells the student to paste one case within the timeframe and to
+   restart `wazuh-logtest` between cases.
+4. Pasted eventchannel JSON is decoded as `json`, so rule 60000
+   (`decoded_as windows_eventchannel`) does not match in `wazuh-logtest`; Wazuh's
+   own `runtests.py` patches rule 60000 for its tests. This is why SETUP.md said
+   the `.jsonl` files could not be pasted; the checklist now gives both the
+   end-to-end method and the temporary patch (with backup and restore).
+5. 100131 still cannot join on the SID in Wazuh (`same_field` compares one field
+   name). It is documented as a known limitation and is checklist case 8.
+
+### Verification
+| Check | Result |
+|-------|--------|
+| `python datasets/generate.py && python tools/make_wazuh_samples.py && python detector/run.py` | 307 events, 16 alerts, 12/12 rules fire; benign build: 246 events, 0 alerts |
+| `python -m pytest -q` | **145 passed** |
+| `sigma check rules/sigma` (sigma-cli 3.1.0, pySigma 1.5.1) | 0 errors, 0 condition errors, 0 issues (21 documents); correlation references resolve |
+| `local_rules.xml` | well-formed; 19 unique rule IDs; every `(?i)` field has `type="pcre2"` (tested) |
+| Mutation check | old rule 04 fires on the unrelated-account test; old rule 10 fails 8 negatives and misses 3 positives; old engine fails 38 tests |
+
+### Not done
+- Revision 1 itself: no Wazuh deployment, no `wazuh-logtest` run, no screenshots
+  (student's job; checklist ready).
+- No pySigma processing pipeline for `src_ip` / `message` (optional revision).
+- Password spraying, slow brute force, Office -> rundll32/regsvr32, 4104 rules
+  (optional revisions).

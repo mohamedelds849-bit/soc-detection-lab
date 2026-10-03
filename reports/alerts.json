@@ -7,7 +7,7 @@
     "source": "linux_auth",
     "ts": 1773131734.0,
     "entity": "src_ip=203.0.113.66",
-    "count": 8,
+    "count": 14,
     "triage": "8+ SSH authentication failures from a single source IP within 2 minutes. Check whether a successful login followed (credential compromise), block the source IP at the firewall, and review the targeted account.\n",
     "evidence": [
       "Mar 10 08:35:06 lab-web01 sshd[7222]: Failed password for mohamed from 203.0.113.66 port 49996 ssh2",
@@ -26,7 +26,7 @@
     "source": "linux_auth",
     "ts": 1773131760.0,
     "entity": "src_ip=203.0.113.66",
-    "count": 9,
+    "count": 15,
     "triage": "A successful SSH login followed 8+ failed attempts from the SAME source IP within 3 minutes. Treat the account as potentially compromised: force password reset, inspect the session, and hunt for follow-on activity.\n",
     "evidence": [
       "Mar 10 08:35:06 lab-web01 sshd[7222]: Failed password for mohamed from 203.0.113.66 port 49996 ssh2",
@@ -34,7 +34,7 @@
       "Mar 10 08:35:15 lab-web01 sshd[7038]: Failed password for mohamed from 203.0.113.66 port 44697 ssh2",
       "Mar 10 08:35:19 lab-web01 sshd[5914]: Failed password for mohamed from 203.0.113.66 port 46975 ssh2",
       "Mar 10 08:35:22 lab-web01 sshd[3230]: Failed password for mohamed from 203.0.113.66 port 51144 ssh2",
-      "Mar 10 08:35:26 lab-web01 sshd[8512]: Failed password for mohamed from 203.0.113.66 port 57782 ssh2"
+      "Mar 10 08:36:00 lab-web01 sshd[1378]: Accepted password for mohamed from 203.0.113.66 port 59731 ssh2"
     ],
     "time": "2026-03-10 08:36:00Z"
   },
@@ -46,7 +46,7 @@
     "source": "win_security",
     "ts": 1773132634.0,
     "entity": "src_ip=198.51.100.77",
-    "count": 8,
+    "count": 12,
     "triage": "8+ failed Windows logons (EventID 4625, network/RDP logon type) from one source IP within 2 minutes. Investigate the source, confirm no successful 4624 followed, and consider account lockout / NLA enforcement.\n",
     "evidence": [
       "{\"@timestamp\": \"2026-03-10T08:50:05.000Z\", \"host\": \"LAB-WIN11\", \"channel\": \"Security\", \"EventID\": 4625, \"TargetUserName\": \"administrator\", \"LogonType\": 10, \"IpAddress\": \"198.51.100.77\", \"Status\": \"0xC000006D\", \"SubStatus\": \"0xC000006A\"}",
@@ -58,15 +58,35 @@
     "time": "2026-03-10 08:50:34Z"
   },
   {
+    "rule_id": "rdp_success_after_bruteforce",
+    "name": "Remote logon success after brute force (RDP / NTLM network logon)",
+    "attack": "T1110 / T1078",
+    "severity": "critical",
+    "source": "win_security",
+    "ts": 1773132659.0,
+    "entity": "src_ip=198.51.100.77",
+    "count": 13,
+    "triage": "A successful remote logon (4624 LogonType 10, or LogonType 3 with NTLM) came from a source IP that produced 8+ failed logons (4625) in the 3 minutes before it. Treat the logged-on account as COMPROMISED (valid account obtained by brute force): disable / reset it, kill its sessions, block the source IP, and hunt for what the account did next (4720/4732, 4698, 1102, process creation). Note the targeted account in the 4624 may differ from the one in the 4625s (password spraying).\n",
+    "evidence": [
+      "{\"@timestamp\": \"2026-03-10T08:50:05.000Z\", \"host\": \"LAB-WIN11\", \"channel\": \"Security\", \"EventID\": 4625, \"TargetUserName\": \"administrator\", \"LogonType\": 10, \"IpAddress\": \"198.51.100.77\", \"Status\": \"0xC000006D\", \"SubStatus\": \"0xC000006A\"}",
+      "{\"@timestamp\": \"2026-03-10T08:50:09.000Z\", \"host\": \"LAB-WIN11\", \"channel\": \"Security\", \"EventID\": 4625, \"TargetUserName\": \"administrator\", \"LogonType\": 10, \"IpAddress\": \"198.51.100.77\", \"Status\": \"0xC000006D\", \"SubStatus\": \"0xC000006A\"}",
+      "{\"@timestamp\": \"2026-03-10T08:50:16.000Z\", \"host\": \"LAB-WIN11\", \"channel\": \"Security\", \"EventID\": 4625, \"TargetUserName\": \"administrator\", \"LogonType\": 10, \"IpAddress\": \"198.51.100.77\", \"Status\": \"0xC000006D\", \"SubStatus\": \"0xC000006A\"}",
+      "{\"@timestamp\": \"2026-03-10T08:50:21.000Z\", \"host\": \"LAB-WIN11\", \"channel\": \"Security\", \"EventID\": 4625, \"TargetUserName\": \"administrator\", \"LogonType\": 10, \"IpAddress\": \"198.51.100.77\", \"Status\": \"0xC000006D\", \"SubStatus\": \"0xC000006A\"}",
+      "{\"@timestamp\": \"2026-03-10T08:50:24.000Z\", \"host\": \"LAB-WIN11\", \"channel\": \"Security\", \"EventID\": 4625, \"TargetUserName\": \"administrator\", \"LogonType\": 10, \"IpAddress\": \"198.51.100.77\", \"Status\": \"0xC000006D\", \"SubStatus\": \"0xC000006A\"}",
+      "{\"@timestamp\": \"2026-03-10T08:50:59.000Z\", \"host\": \"LAB-WIN11\", \"channel\": \"Security\", \"EventID\": 4624, \"TargetUserName\": \"administrator\", \"LogonType\": 10, \"IpAddress\": \"198.51.100.77\", \"AuthenticationPackageName\": \"Negotiate\"}"
+    ],
+    "time": "2026-03-10 08:50:59Z"
+  },
+  {
     "rule_id": "new_local_admin",
     "name": "New local account added to Administrators",
     "attack": "T1136.001 / T1098",
     "severity": "high",
     "source": "win_security",
     "ts": 1773133088.0,
-    "entity": "host=LAB-WIN11",
+    "entity": "account_sid=S-1-5-21-1111111111-2222222222-3333333333-1005",
     "count": 2,
-    "triage": "A local account was created (EventID 4720) and shortly after added to the Administrators group (EventID 4732) on the same host. Confirm this change was authorized; attackers create admin accounts for persistence and privilege.\n",
+    "triage": "An account was created (EventID 4720) and the SAME account (4720 TargetSid == 4732 MemberSid) was added to the local Administrators group within 2 minutes. Confirm the change was authorized; attackers create admin accounts for persistence and privilege. Adding an existing account to Administrators does not trigger this rule (review 4732 on its own for that).\n",
     "evidence": [
       "{\"@timestamp\": \"2026-03-10T08:58:00.000Z\", \"host\": \"LAB-WIN11\", \"channel\": \"Security\", \"EventID\": 4720, \"TargetUserName\": \"svc_helper\", \"TargetSid\": \"S-1-5-21-1111111111-2222222222-3333333333-1005\", \"SubjectUserName\": \"administrator\"}",
       "{\"@timestamp\": \"2026-03-10T08:58:08.000Z\", \"host\": \"LAB-WIN11\", \"channel\": \"Security\", \"EventID\": 4732, \"TargetUserName\": \"Administrators\", \"TargetSid\": \"S-1-5-32-544\", \"MemberName\": \"-\", \"MemberSid\": \"S-1-5-21-1111111111-2222222222-3333333333-1005\", \"SubjectUserName\": \"administrator\"}"
@@ -141,7 +161,7 @@
     "source": "sysmon",
     "ts": 1773133388.0,
     "entity": "src_ip=203.0.113.90",
-    "count": 15,
+    "count": 21,
     "triage": "A single source IP contacted 15+ distinct destination ports within 60 seconds (network connection EventID 3). This pattern indicates host/port scanning or service discovery. Identify the source and whether it is an authorized scanner.\n",
     "evidence": [
       "dest_port=21",
@@ -176,14 +196,14 @@
   },
   {
     "rule_id": "web_shell_request",
-    "name": "Web shell-like request in web access logs",
+    "name": "Web shell interaction (behaviour-based) in web access logs",
     "attack": "T1505.003",
     "severity": "high",
     "source": "apache",
     "ts": 1773133507.0,
     "entity": "192.0.2.44",
     "count": 1,
-    "triage": "A request targeting a PHP endpoint with command-execution style parameters (cmd=, whoami, /uploads/...). Possible web shell interaction. Inspect the web root for unauthorized .php files, review the source IP's full request history, and check server-side process execution.\n",
+    "triage": "Behavioural web shell indicator: an OS command passed in a command-style parameter, a PHP code-execution / encoded payload, or a successful POST to a script inside an upload directory. Inspect the web root (especially upload folders) for unauthorized scripts, pull the source IP's full request history and user agent, and check the web server's child processes (Sysmon EID 1 / auditd) for whoami/id/uname spawned by the web server user.\n",
     "evidence": [
       "192.0.2.44 - - [10/Mar/2026:09:05:07 +0000] \"POST /uploads/shell.php?cmd=whoami HTTP/1.1\" 200 116 \"-\" \"curl/7.88.1\""
     ],
@@ -191,14 +211,14 @@
   },
   {
     "rule_id": "web_shell_request",
-    "name": "Web shell-like request in web access logs",
+    "name": "Web shell interaction (behaviour-based) in web access logs",
     "attack": "T1505.003",
     "severity": "high",
     "source": "apache",
     "ts": 1773133517.0,
     "entity": "192.0.2.44",
     "count": 1,
-    "triage": "A request targeting a PHP endpoint with command-execution style parameters (cmd=, whoami, /uploads/...). Possible web shell interaction. Inspect the web root for unauthorized .php files, review the source IP's full request history, and check server-side process execution.\n",
+    "triage": "Behavioural web shell indicator: an OS command passed in a command-style parameter, a PHP code-execution / encoded payload, or a successful POST to a script inside an upload directory. Inspect the web root (especially upload folders) for unauthorized scripts, pull the source IP's full request history and user agent, and check the web server's child processes (Sysmon EID 1 / auditd) for whoami/id/uname spawned by the web server user.\n",
     "evidence": [
       "192.0.2.44 - - [10/Mar/2026:09:05:17 +0000] \"GET /images/up.php?cmd=id HTTP/1.1\" 200 89 \"-\" \"curl/7.88.1\""
     ],
@@ -206,18 +226,33 @@
   },
   {
     "rule_id": "web_shell_request",
-    "name": "Web shell-like request in web access logs",
+    "name": "Web shell interaction (behaviour-based) in web access logs",
     "attack": "T1505.003",
     "severity": "high",
     "source": "apache",
     "ts": 1773133529.0,
     "entity": "192.0.2.44",
     "count": 1,
-    "triage": "A request targeting a PHP endpoint with command-execution style parameters (cmd=, whoami, /uploads/...). Possible web shell interaction. Inspect the web root for unauthorized .php files, review the source IP's full request history, and check server-side process execution.\n",
+    "triage": "Behavioural web shell indicator: an OS command passed in a command-style parameter, a PHP code-execution / encoded payload, or a successful POST to a script inside an upload directory. Inspect the web root (especially upload folders) for unauthorized scripts, pull the source IP's full request history and user agent, and check the web server's child processes (Sysmon EID 1 / auditd) for whoami/id/uname spawned by the web server user.\n",
     "evidence": [
       "192.0.2.44 - - [10/Mar/2026:09:05:29 +0000] \"POST /wp-content/uploads/evil.php HTTP/1.1\" 200 100 \"-\" \"curl/7.88.1\""
     ],
     "time": "2026-03-10 09:05:29Z"
+  },
+  {
+    "rule_id": "web_shell_request",
+    "name": "Web shell interaction (behaviour-based) in web access logs",
+    "attack": "T1505.003",
+    "severity": "high",
+    "source": "apache",
+    "ts": 1773133534.0,
+    "entity": "192.0.2.44",
+    "count": 1,
+    "triage": "Behavioural web shell indicator: an OS command passed in a command-style parameter, a PHP code-execution / encoded payload, or a successful POST to a script inside an upload directory. Inspect the web root (especially upload folders) for unauthorized scripts, pull the source IP's full request history and user agent, and check the web server's child processes (Sysmon EID 1 / auditd) for whoami/id/uname spawned by the web server user.\n",
+    "evidence": [
+      "192.0.2.44 - - [10/Mar/2026:09:05:34 +0000] \"GET /uploads/shell.php?cmd=Y2F0IC9ldGMvcGFzc3dk HTTP/1.1\" 200 88 \"-\" \"curl/7.88.1\""
+    ],
+    "time": "2026-03-10 09:05:34Z"
   },
   {
     "rule_id": "office_spawns_shell",

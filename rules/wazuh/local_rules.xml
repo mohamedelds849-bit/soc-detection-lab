@@ -8,9 +8,15 @@
 
   Parent SIDs were checked against the Wazuh v4.9.2 ruleset
   (github.com/wazuh/wazuh/tree/v4.9.2/ruleset/rules):
-    - 0095-sshd_rules.xml        : 5760 (Failed password), 5710 (invalid user), 5715 (Accepted)
-    - 0580-win-security_rules.xml: 60122 (4625), 60109 (4720/4722), 60154 (Administrators
-                                   group changed, targetSid S-1-5-32-544), 60228 (4698), 60117 (1102)
+    - 0095-sshd_rules.xml        : 5760 (Failed password), 5710 (invalid user), 5715 (Accepted),
+                                   5763 (built-in brute force, frequency 8 / 120s)
+    - 0580-win-security_rules.xml: 60122 (4625), 60106 (4624 logon success), 60109 (4720/4722),
+                                   60154 (Administrators group changed, targetSid S-1-5-32-544),
+                                   60228 (4698), 60117 (1102), 60204 (multiple logon failures,
+                                   frequency 8 / 240s, same win.eventdata.ipAddress)
+    - 0840-win_event_channel.xml : 92651/92652/92653 (remote / NTLM / RDP logon success,
+                                   children of 60106, level 0-6)
+    - 0280-attack_rules.xml      : 40112 (failures followed by success, level 12)
     - 0610-win-ms_logs_rules.xml : 63103 (1102 via Microsoft-Windows-Eventlog provider)
     - 0595-win-sysmon_rules.xml  : 61603 (Sysmon EID 1), 61605 (Sysmon EID 3)
     - 0600-win-wdefender_rules.xml: 62152 (Defender 5001, real-time protection disabled)
@@ -22,6 +28,25 @@
   Defender disabled by PowerShell); these custom rules re-implement the logic
   with lab-specific grouping/thresholds. If a built-in sibling wins the match
   in wazuh-logtest, attach the custom rule as a child of that built-in rule.
+
+  Rule ORDER matters (checked in src/analysisd/rules_list.c, _OS_AddRule, v4.9.2):
+  the children of a rule are evaluated by DESCENDING level, and on equal level in
+  load order, so a built-in sibling with the same or higher level is tried first
+  and, if it matches, the custom sibling is never evaluated for that event.
+  Consequences applied below (revision round 1):
+    - SSH brute force: built-in 5763 (level 10, 8 failures/120s, same parent 5760)
+      would always win over a custom level-10 frequency rule -> 100110 is now a
+      CHILD of 5763 (enrichment) instead of a competing sibling.
+    - Windows logon brute force: built-in 60204 (level 10, 8 failures/240s, same
+      ipAddress, child of every "authentication_failed" rule) would mask a custom
+      counter -> 100121 is now a CHILD of 60204, filtered on 4625 LogonType 3/10.
+      The old helper rule 100120 was removed.
+    - Success-after-brute-force rules (100111, 100122, 100123) use level 13 so
+      they are tried before the built-in 40112 / 40101 (level 12) siblings.
+  Correlation (frequency / if_matched_sid) is per agent by default and uses the
+  time the manager RECEIVED the events, not the event timestamp. When replaying
+  in wazuh-logtest, paste the lines of one sequence within the timeframe.
+  None of this has been run on a live manager yet: see docs/WAZUH-VALIDATION.md.
 
   Regex: Wazuh's default regex engine (OSRegex) does NOT support (?i), ?, [..]
   or {n}; every field that uses PCRE syntax therefore declares type="pcre2".
@@ -41,10 +66,9 @@
        (Failed attempts for non-existent users hit 5710 instead; the
        built-in 5712 already correlates those.)
        ============================================================= -->
-  <rule id="100110" level="10" frequency="8" timeframe="120">
-    <if_matched_sid>5760</if_matched_sid>
-    <same_source_ip />
-    <description>SSH brute force: 8+ failed logins from same source in 120s</description>
+  <rule id="100110" level="10">
+    <if_sid>5763</if_sid>
+    <description>SSH brute force: 8+ failed logins from same source in 120s (lab enrichment of 5763)</description>
     <mitre>
       <id>T1110</id>
     </mitre>
@@ -54,38 +78,74 @@
   <!-- T1110 - successful SSH login (5715) from a source that triggered
        100110 in the previous 180s. Same pattern as Wazuh's built-in 40112
        ("Multiple authentication failures followed by a success"):
-       if_sid + if_matched_sid + timeframe, no frequency. -->
-  <rule id="100111" level="12" timeframe="180">
+       if_sid + if_matched_sid + timeframe, no frequency. Level 13 so it is
+       evaluated before the level-12 built-in siblings 40101/40112. -->
+  <rule id="100111" level="13" timeframe="180">
     <if_sid>5715</if_sid>
     <if_matched_sid>100110</if_matched_sid>
     <same_source_ip />
     <description>SSH successful login after brute force (possible credential compromise)</description>
     <mitre>
       <id>T1110</id>
+      <id>T1078</id>
     </mitre>
     <group>authentication_success,ssh,</group>
   </rule>
 
   <!-- =============================================================
        T1110 - RDP / Windows logon brute force (EventID 4625)
-       Built-in 60122 = "Logon Failure - Unknown user or bad password".
+       Enrichment of built-in 60204 ("Multiple Windows Logon Failures",
+       8 failures / 240s, same win.eventdata.ipAddress). Only 4625 of logon
+       type 3 (network; also RDP with NLA) or 10 (RemoteInteractive).
        ============================================================= -->
-  <rule id="100120" level="5">
-    <if_sid>60122</if_sid>
+  <rule id="100121" level="10">
+    <if_sid>60204</if_sid>
     <field name="win.system.eventID">^4625$</field>
-    <description>Windows failed logon (EventID 4625)</description>
-    <options>no_full_log</options>
-    <group>authentication_failed,windows,</group>
-  </rule>
-
-  <rule id="100121" level="10" frequency="8" timeframe="120">
-    <if_matched_sid>100120</if_matched_sid>
-    <same_field>win.eventdata.ipAddress</same_field>
-    <description>RDP/Windows brute force: 8+ failed logons from same source in 120s</description>
+    <field name="win.eventdata.logonType" type="pcre2">^(3|10)$</field>
+    <description>RDP/Windows brute force: 8+ failed network/RDP logons from $(win.eventdata.ipAddress)</description>
     <mitre>
       <id>T1110</id>
     </mitre>
     <group>authentication_failures,windows,</group>
+  </rule>
+
+  <!-- =============================================================
+       T1110 + T1078 - remote logon SUCCESS after the brute force (rule 12)
+       Built-in 60106 = "Windows Logon Success" (4624). Its built-in children
+       92651/92653 (level 0/3) and 40112 (level 12) are tried AFTER these
+       level-13 rules; only 92656 (level 15, RDP from loopback) comes first.
+       100122: RDP (logonType 10).
+       100123: network logon (logonType 3) with NTLM - NLA credential check,
+               SMB/WinRM password guessing, pass-the-hash.
+       Both require a 100121 alert for the same ipAddress in the last 180s.
+       ============================================================= -->
+  <rule id="100122" level="13" timeframe="180">
+    <if_sid>60106</if_sid>
+    <if_matched_sid>100121</if_matched_sid>
+    <same_field>win.eventdata.ipAddress</same_field>
+    <field name="win.system.eventID">^4624$</field>
+    <field name="win.eventdata.logonType" type="pcre2">^10$</field>
+    <description>RDP logon success for $(win.eventdata.targetUserName) from $(win.eventdata.ipAddress) after brute force (account likely compromised)</description>
+    <mitre>
+      <id>T1110</id>
+      <id>T1078</id>
+    </mitre>
+    <group>authentication_success,windows,</group>
+  </rule>
+
+  <rule id="100123" level="13" timeframe="180">
+    <if_sid>60106</if_sid>
+    <if_matched_sid>100121</if_matched_sid>
+    <same_field>win.eventdata.ipAddress</same_field>
+    <field name="win.system.eventID">^4624$</field>
+    <field name="win.eventdata.logonType" type="pcre2">^3$</field>
+    <field name="win.eventdata.authenticationPackageName" type="pcre2">(?i)^NTLM$</field>
+    <description>NTLM network logon success for $(win.eventdata.targetUserName) from $(win.eventdata.ipAddress) after brute force (account likely compromised)</description>
+    <mitre>
+      <id>T1110</id>
+      <id>T1078</id>
+    </mitre>
+    <group>authentication_success,windows,</group>
   </rule>
 
   <!-- =============================================================
@@ -104,8 +164,12 @@
   <!-- Built-in 60154 = Administrators group changed (targetSid S-1-5-32-544,
        language-independent: the group is "Administrateurs" on French Windows).
        60154 covers both 4732 (added) and 4733 (removed) -> keep the eventID filter.
-       Limitation: Wazuh's same_field cannot join 4720 targetSid with 4732
-       memberSid (different field names), so this correlates per host only. -->
+       Limitation: Wazuh's same_field compares ONE field name in both events, so
+       it cannot join 4720 targetSid with 4732 memberSid. Correlation is per
+       agent (host) by default, so this rule can fire for "account A created,
+       then unrelated account B added to Administrators" on the same host. The
+       engine and Sigma versions join on the SID; here the analyst must compare
+       targetSid (100130) with memberSid (100131) during triage. -->
   <rule id="100131" level="10" timeframe="120">
     <if_sid>60154</if_sid>
     <field name="win.system.eventID">^4732$</field>
@@ -224,17 +288,45 @@
   </rule>
 
   <!-- =============================================================
-       T1505.003 - web shell-like request (Apache/Nginx access log)
-       Built-in decoder web-accesslog populates url/id fields.
+       T1505.003 - web shell interaction, behaviour-based (no file names)
+       Built-in decoder web-accesslog fills srcip, protocol (= HTTP method),
+       url (path + query) and id (= status code). These level-10 children of
+       31100 are tried before the built-in 31103/31104/31108 (levels 0-7).
+       100190: OS command in a command-style parameter
+       100191: PHP code-execution call or base64 payload in a command parameter
+       100192: successful POST to a script inside an upload directory
+       "evaluation", "whoami" in q=..., id=42 ... must NOT match.
        ============================================================= -->
   <rule id="100190" level="10">
     <if_sid>31100</if_sid>
-    <url type="pcre2">(?i)(cmd=|exec=|eval|whoami|shell\.php|/uploads/.+\.php|up\.php|evil\.php)</url>
-    <description>Possible web shell request (command-exec parameters on PHP endpoint)</description>
+    <url type="pcre2">(?i)[?&amp;](cmd|exec|command|execute|run|c)=(?:[^&amp;]*?(?:\+|%20|%3B|%7C|;|\|))?(?:whoami|id|uname|hostname|ipconfig|ifconfig|pwd|net(?:\+|%20)+(?:user|localgroup)|cat(?:\+|%20)+(?:/|%2F)etc(?:/|%2F)passwd|ls(?:\+|%20)+-[a-z]*)(?=$|&amp;|\+|%20|%3B|%7C)</url>
+    <description>Web shell: OS command passed in a command parameter ($(url))</description>
     <mitre>
       <id>T1505.003</id>
     </mitre>
-    <group>web,attack,</group>
+    <group>web,attack,web_shell,</group>
+  </rule>
+
+  <rule id="100191" level="10">
+    <if_sid>31100</if_sid>
+    <url type="pcre2">(?i)(?:\b(?:eval|assert|system|passthru|shell_exec|base64_decode)(?:\(|%28))|[?&amp;](?:cmd|exec|command|execute)=(?=[^&amp;]*\d)(?:[A-Za-z0-9+/]|%2B|%2F){16,}(?:=|%3D){0,2}(?:&amp;|$)</url>
+    <description>Web shell: PHP code execution or encoded payload in request ($(url))</description>
+    <mitre>
+      <id>T1505.003</id>
+    </mitre>
+    <group>web,attack,web_shell,</group>
+  </rule>
+
+  <rule id="100192" level="10">
+    <if_sid>31100</if_sid>
+    <protocol>POST</protocol>
+    <id type="pcre2">^20[0124]$</id>
+    <url type="pcre2">(?i)/(?:uploads?|files|media|tmp)/(?:[^?#]*/)?[^/?#]+\.(?:php\d?|phtml|phar)(?:\?|$)</url>
+    <description>Web shell: successful POST to a script in an upload directory ($(url))</description>
+    <mitre>
+      <id>T1505.003</id>
+    </mitre>
+    <group>web,attack,web_shell,</group>
   </rule>
 
   <!-- =============================================================

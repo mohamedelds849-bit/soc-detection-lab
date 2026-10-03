@@ -51,6 +51,23 @@ Enchaîner plusieurs échecs (test 1) **puis** une connexion correcte avec le bo
 mot de passe de ton compte de test. ➜ Doit remonter la règle de compromission
 probable.
 
+**Variante Windows — règle n°12 `rdp_success_after_bruteforce` (Wazuh 100122 /
+100123, T1110 + T1078).** Depuis une **deuxième machine de lab** (pas depuis
+LAB-WIN11 lui-même : une connexion depuis 127.0.0.1 tombe sur la règle intégrée
+92656), faire le test 2 (≥ 8 échecs en moins de 2 minutes), **puis** se connecter
+avec le bon mot de passe du compte de test :
+
+```powershell
+# succès réseau NTLM type 3 -> 100123
+net use \\LAB-WIN11\IPC$ /user:LAB-WIN11\testuser BonMotDePasseDeTest
+net use \\LAB-WIN11\IPC$ /delete
+```
+ou ouvrir une session **RDP** (`mstsc /v:LAB-WIN11`) avec le bon mot de passe
+➜ 4624 LogonType 10 → 100122. Avec NLA, on observe souvent d'abord un 4624 type 3
+(vérification NLA) puis le type 10 : les deux règles peuvent sortir.
+Nettoyage : fermer la session, `net user testuser /delete` si le compte a été créé
+pour l'occasion.
+
 ---
 
 ## 4. Nouveau compte admin — T1136.001 / T1098 (`new_local_admin` / 100131)
@@ -149,13 +166,19 @@ Set-MpPreference -DisableRealtimeMonitoring $false   # réactivation immédiate
 
 ## 10. Requête type web shell — T1505.003 (`web_shell_request` / 100190)
 
-Sur **ton** serveur web de lab, envoyer une requête inoffensive dont l'URL
-ressemble à un web shell (aucun fichier `.php` malveillant n'est déposé) :
+Sur **ton** serveur web de lab, envoyer des requêtes inoffensives qui ont le
+**comportement** d'une interaction web shell (aucun fichier `.php` n'est déposé) :
 
 ```bash
-curl "http://127.0.0.1/uploads/shell.php?cmd=whoami"   # renverra 404, c'est normal
+curl "http://127.0.0.1/index.php?cmd=whoami"      # 100190 : commande système dans un paramètre (même en 404)
+curl "http://127.0.0.1/index.php?cmd=Y2F0IC9ldGMvcGFzc3dk"   # 100191 : charge base64
+curl "http://127.0.0.1/search?q=evaluation"       # NE DOIT RIEN déclencher (test négatif)
 ```
-➜ La ligne du journal d'accès déclenche la règle (le motif d'URL suffit).
+➜ Les deux premières lignes du journal d'accès déclenchent la règle ; la troisième
+non. L'indicateur « POST réussi vers un `.php` dans `uploads/` » (100192) demande un
+statut 2xx : il n'est testable qu'avec un script **inoffensif** que tu crées toi-même
+dans un dossier `uploads/` de ton serveur de lab (par ex. un fichier qui affiche
+`ok`), à supprimer juste après.
 
 ---
 
@@ -171,6 +194,14 @@ Sysmon EID 1.
 > ⚠️ Ne jamais activer de macros provenant de documents externes. Utiliser
 > exclusivement un document créé par toi, dans la VM de lab, avec une commande
 > inoffensive.
+
+---
+
+## 12. Succès distant après force brute — T1110 + T1078 (`rdp_success_after_bruteforce` / 100122, 100123)
+
+Voir la variante Windows du §3 : ≥ 8 échecs 4625 depuis une machine de lab, puis
+une connexion réussie (RDP ou `net use` NTLM) depuis **la même IP** en moins de
+3 minutes. Test négatif : 7 échecs seulement, puis succès ➜ aucune alerte.
 
 ---
 
