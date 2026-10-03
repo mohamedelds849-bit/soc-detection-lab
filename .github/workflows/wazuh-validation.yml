@@ -1,0 +1,31 @@
+name: wazuh-validation
+# Detection-as-code: start a real Wazuh 4.9.2 manager, load rules/wazuh/local_rules.xml,
+# replay datasets/wazuh_logtest/*.log through wazuh-logtest, publish the results.
+on:
+  workflow_dispatch:
+  push:
+    paths: ["rules/**", "lab/**", "datasets/wazuh_logtest/**", ".github/workflows/wazuh-validation.yml"]
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - name: Start Wazuh manager and load lab rules
+        run: bash lab/start.sh
+      - name: Replay logtest cases
+        run: |
+          mkdir -p lab/results
+          bash lab/run_all.sh | tee lab/results/_summary.txt
+      - name: Job summary
+        if: always()
+        run: |
+          echo '## Wazuh logtest results' >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+          cat lab/results/_summary.txt >> "$GITHUB_STEP_SUMMARY" || true
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: wazuh-logtest-results
+          path: lab/results/
