@@ -6,7 +6,7 @@ Détails techniques de chaque étape : `docs/SETUP.md`.
 | # | Étape | Qui | Preuve attendue | Statut |
 |---|-------|-----|-----------------|--------|
 | 0 | Libérer de l'espace disque (objectif ≥ 25 Go libres sur C:) | Mohamed | « étape 0 faite » (vérif. automatique) | ⏳ |
-| 1 | `wsl --install -d Ubuntu-22.04` (PowerShell admin) + redémarrage + utilisateur Ubuntu | Mohamed | capture de la fenêtre Ubuntu | ⏳ |
+| 1 | (Option sans installation : voir `lab/README-CODESPACES.md`) `wsl --install -d Ubuntu-22.04` (PowerShell admin) + redémarrage + utilisateur Ubuntu | Mohamed | capture de la fenêtre Ubuntu | ⏳ |
 | 2 | systemd actif (`ps -p 1 -o comm=` → `systemd`) | Mohamed | texte affiché | ⏳ |
 | 3 | `wazuh-install.sh -a -i` (Wazuh 4.9 all-in-one) + noter le mot de passe admin | Mohamed | dernières lignes du script (sans le mot de passe) | ⏳ |
 | 3b | Désactiver la détection de vulnérabilités (gain disque/RAM) | Mohamed | — | ⏳ |
