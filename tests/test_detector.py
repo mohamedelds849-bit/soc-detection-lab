@@ -589,10 +589,12 @@ def test_wazuh_rules_well_formed_and_consistent():
     ids = [r.get("id") for r in ET.parse(WAZUH_XML).getroot().iter("rule")]
     assert len(ids) == len(set(ids))
     assert all(100000 <= int(i) <= 120000 for i in ids)
-    # rule 12 in Wazuh form: 4624 children of 60106 chained on the RDP brute force
-    for rid, ltype in (("100122", "^10$"), ("100123", "^3$")):
+    # rule 12 in Wazuh form: 4624 children of 60106 chained on the RDP brute force,
+    # also attached under the built-in child that captured the event in CI
+    # (92653 RDP success / 92652 NTLM success, Wazuh 4.9.2, run 3 -> run 4)
+    for rid, ltype, builtin in (("100122", "^10$", "92653"), ("100123", "^3$", "92652")):
         r = rs[rid]
-        assert r.find("if_sid").text == "60106"
+        assert [x.strip() for x in r.find("if_sid").text.split(",")] == ["60106", builtin]
         assert r.find("if_matched_sid").text == "100121"
         assert r.find("same_field").text == "win.eventdata.ipAddress"
         assert int(r.get("level")) > 12  # tried before built-in 40112 (level 12)
