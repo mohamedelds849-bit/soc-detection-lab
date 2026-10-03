@@ -9,11 +9,18 @@ if ! docker ps --format '{{.Names}}' | grep -qx "$NAME"; then
   docker run -d --name "$NAME" --hostname "$NAME" "$IMG" >/dev/null
 fi
 echo "[2/3] Waiting for wazuh-analysisd ..."
+ready=0
 for i in $(seq 1 60); do
-  if docker exec "$NAME" /var/ossec/bin/wazuh-control status 2>/dev/null | grep -q "wazuh-analysisd is running"; then break; fi
+  st="$(docker exec "$NAME" /var/ossec/bin/wazuh-control status 2>&1 || true)"
+  if echo "$st" | grep -qiE "analysisd.*(is )?running"; then ready=1; break; fi
   sleep 5
-  [[ $i -eq 60 ]] && { echo "Manager did not start: docker logs $NAME | tail -50"; exit 1; }
 done
+if [[ $ready -ne 1 ]]; then
+  echo "!! Manager not ready. wazuh-control status:"; echo "$st"
+  echo "!! docker ps -a:"; docker ps -a
+  echo "!! docker logs (last 80 lines):"; docker logs "$NAME" 2>&1 | tail -80
+  exit 1
+fi
 docker exec "$NAME" /var/ossec/bin/wazuh-control info | head -3
 echo "[3/3] Deploying lab rules"
 bash "$(dirname "$0")/deploy_rules.sh"
