@@ -15,3 +15,5 @@ for f in "$REPO"/datasets/wazuh_logtest/*.log; do
 done
 bash "$REPO/lab/windows_mode.sh" off >/dev/null
 echo; echo "Full outputs: lab/results/*.txt  (screenshot the terminal for docs/screenshots/)"
+echo; echo "=== Automatic check against lab/expected.json ==="
+python3 "$REPO/lab/check_results.py"

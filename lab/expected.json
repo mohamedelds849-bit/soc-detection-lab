@@ -1,0 +1,21 @@
+{
+  "_doc": "Final rule id expected on each line of datasets/wazuh_logtest/<file>.log (Wazuh 4.9.2). 'not:' = this rule must NOT fire on that line. Validated in CI 2026-10-03.",
+  "01_ssh_bruteforce_then_success": ["5760","5760","5760","5760","5760","5760","5760","100110","100111"],
+  "02_ssh_7_failures_then_success_NEGATIVE": ["5760","5760","5760","5760","5760","5760","5760","5715"],
+  "03_rdp_bruteforce_then_rdp_success": ["60122","60122","60122","60122","60122","60122","60122","100121","100122"],
+  "04_network_bruteforce_then_ntlm_success": ["60122","60122","60122","60122","60122","60122","60122","100121","100123"],
+  "05_network_bruteforce_then_kerberos_success_NEGATIVE": ["60122","60122","60122","60122","60122","60122","60122","100121","not:100123"],
+  "06_rdp_7_failures_then_success_NEGATIVE": ["60122","60122","60122","60122","60122","60122","60122","not:100122"],
+  "07_new_account_added_to_admins": ["100130","100131"],
+  "08_unrelated_account_added_to_admins_KNOWN_LIMITATION": ["100130","100131"],
+  "09_encoded_powershell": ["100140"],
+  "10_scheduled_task_4698": ["100150"],
+  "11_scheduled_task_schtasks": ["100151"],
+  "12_security_log_cleared": ["100160"],
+  "13_port_scan_15_connections": ["100170","100170","100170","100170","100170","100170","100170","100170","100170","100170","100170","100170","100170","100170","100171"],
+  "14_defender_disable_command": ["100180"],
+  "15_defender_5001": ["100181"],
+  "16_office_spawns_shell": ["100200"],
+  "17_web_shell_requests": ["100190","100190","100192","100191"],
+  "18_web_lookalikes_NEGATIVE": ["not:1001","not:1001","not:1001","not:1001","not:1001","not:1001","not:1001","not:1001","not:1001","not:1001"]
+}
