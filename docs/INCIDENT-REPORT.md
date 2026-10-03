@@ -7,7 +7,7 @@
 > d'un vrai rapport d'incident pour l'exercice.
 
 - **Référence incident :** LAB-IR-2026-001
-- **Analyste :** Mohamed Elansari (SOC Detection Engineer)
+- **Analyste :** Mohamed Elansari (élève ingénieur, rôle d'analyste SOC tenu pour l'exercice)
 - **Date de l'analyse :** 2026-03-10
 - **Classification :** Lab / Confidentiel (exercice)
 - **Gravité :** Élevée (compromission de compte + persistance + évasion de défense)
