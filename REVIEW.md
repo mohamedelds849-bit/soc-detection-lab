@@ -320,3 +320,38 @@ student's own work and was **not** attempted; it is now prepared by
 - No pySigma processing pipeline for `src_ip` / `message` (optional revision).
 - Password spraying, slow brute force, Office -> rundll32/regsvr32, 4104 rules
   (optional revisions).
+
+---
+
+## CI validation (2026-10-03) — correction of an earlier claim
+
+The Wazuh rules are now executed on every relevant push by
+`.github/workflows/wazuh-validation.yml`: real `wazuh/wazuh-manager:4.9.2` in
+Docker, `local_rules.xml` validated with `wazuh-analysisd -t`, the 18 files of
+`datasets/wazuh_logtest/` replayed with `lab/run_all.sh`, and
+`lab/check_results.py` failing the build if the final rule id of any line differs
+from `lab/expected.json`.
+
+| Run | Result | Root cause | Fix |
+|-----|--------|------------|-----|
+| 1 | failed before testing | readiness-check bug in `lab/start.sh` | robust readiness check + diagnostics |
+| 2 | SSH + web OK; every Windows event -> rule 1002; 100192 never fired | the rule 60000 test patch must also remove `<category>ossec</category>` (as `ruleset/testing/runtests.py` does); built-in 31108 (level 0) captured the POST without query string | runtests-style patch; 100192 `if_sid 31100,31108` |
+| 3 | 15/18 (KO 03, 04, 13) | built-in 92653 captured the RDP success before 100122; 92652 the NTLM success before 100123; 2 of 15 Sysmon EID 3 ended on 92106 via 92105, so the 100170 counter reached 13 | 100122 `if_sid 60106, 92653`; 100123 `if_sid 60106, 92652`; 100170 `if_sid 61605, 92101…92110` |
+| 4 | **18/18** | — | — |
+
+**Correction.** The "Wazuh findings from reading the 4.9.2 source" above (point 1,
+and the "Sibling order" note in `rules/README.md`) state that sibling child rules
+are tried by descending level. In practice this did **not** hold: built-in
+children loaded first, with a lower level, captured events before the custom
+higher-level siblings (92653, 92652, 92106, 31108). Raising the level (100111,
+100122, 100123 at 13) was not enough; the robust fix is to attach custom rules
+under the built-in child rules that may capture the event. The text above is kept
+as written for history; this section supersedes it.
+
+Case 08 (unrelated account added to Administrators) fires 100131 as documented:
+known limitation, expected behaviour.
+
+**Still not done:** case 19, end to end with a real Windows agent + Sysmon and a
+real RDP logon. The CI proves rule logic on synthetic lines replayed in
+`wazuh-logtest` (with a CI-only patch of rule 60000), not live monitoring.
+

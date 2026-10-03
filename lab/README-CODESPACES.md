@@ -1,7 +1,8 @@
 # Lab Wazuh dans GitHub Codespaces (rien à installer sur le PC)
 
-> Préparé le 2026-10-03, **pas encore exécuté** : la première exécution est la tienne.
-> Si une étape échoue, copie le message d'erreur et envoie-le.
+> Préparé le 2026-10-03. Les mêmes scripts tournent maintenant **automatiquement en CI**
+> (`.github/workflows/wazuh-validation.yml`) : **18/18 cas validés** sur Wazuh 4.9.2.
+> Ce guide sert à refaire la validation à la main dans un Codespace (captures, démo).
 
 Ce qu'on déploie : un **manager Wazuh 4.9.2** dans Docker (sans indexer ni dashboard, pour tenir dans
 une petite machine Codespaces). C'est le composant qui contient le moteur de règles et `wazuh-logtest`,
@@ -32,7 +33,7 @@ donc suffisant pour valider les 19 cas de `docs/WAZUH-VALIDATION.md`.
 
 ## Ce que tu pourras dire en entretien
 « J'ai déployé un manager Wazuh 4.9.2 dans un conteneur Docker (GitHub Codespaces), chargé mes règles,
-et je les ai validées avec `wazuh-logtest` sur 19 cas, dont des cas négatifs. » Ne dis pas que tu as
+et je les ai validées avec `wazuh-logtest` sur 18 cas, dont des cas négatifs, automatiquement en CI (GitHub Actions). » Ne dis pas que tu as
 supervisé un vrai parc : il n'y a pas d'agent sur une vraie machine dans cette version.
 
 ## Scripts

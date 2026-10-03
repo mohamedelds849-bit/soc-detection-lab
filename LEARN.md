@@ -2,7 +2,8 @@
 
 Document d'apprentissage en français qui accompagne le projet **SOC Detection
 Lab**. Il résume les concepts clés, l'architecture Wazuh, les Event IDs utilisés,
-Sigma, la corrélation et le réglage des faux positifs, puis propose 15 questions
+Sigma, la corrélation, la validation des règles en CI (detection-as-code) et le
+réglage des faux positifs, puis propose 20 questions
 d'entretien avec réponses modèles et une ligne de CV honnête.
 
 ---
@@ -113,13 +114,63 @@ Types implémentés dans le moteur offline (`detector/engine.py`) :
 - **single** : un évènement unique suffit (ex. journal effacé, Defender désactivé).
 
 Dans Wazuh, la corrélation s'exprime avec `frequency` + `timeframe`,
-`if_matched_sid`, `same_source_ip`, `same_field`, etc. Deux pièges lus dans le
-code source de Wazuh 4.9.2 : (1) les règles sœurs sont essayées par **niveau
-décroissant** puis dans l'ordre de chargement, donc une règle intégrée de même
-niveau sur le même parent gagne avant la vôtre (d'où 100110 enfant de 5763, et
-100121 enfant de 60204) ; (2) `frequency="8"` se déclenche bien au 8ᵉ
+`if_matched_sid`, `same_source_ip`, `same_field`, etc. Deux pièges : (1) **ordre des
+règles sœurs** : la lecture du code source de Wazuh 4.9.2 laissait penser que les
+enfants d'un même parent sont essayés par **niveau décroissant** ; **la CI a
+montré que c'est faux en pratique** : les enfants intégrés, chargés avant
+`local_rules.xml`, capturent l'évènement avant une règle locale sœur de niveau
+plus élevé (voir §5 bis). La parade robuste est de rattacher la règle locale
+**sous** les enfants intégrés qui peuvent capturer l'évènement (100110 enfant de
+5763, 100121 de 60204, 100122 de 92653, 100123 de 92652, 100192 de 31108) ; (2) `frequency="8"` se déclenche bien au 8ᵉ
 évènement (le code retire 2 à la valeur lue et compte l'évènement courant), et la
 fenêtre est mesurée sur l'heure de **réception** par le manager.
+
+---
+
+## 5 bis. Detection-as-code : valider les règles en CI
+
+**Idée.** Traiter les règles de détection comme du code : versionnées dans Git,
+**testées automatiquement** à chaque modification, et un changement qui casse une
+détection fait échouer le build (comme un test unitaire qui casse).
+
+**Dans ce lab** (`.github/workflows/wazuh-validation.yml`), à chaque push qui touche
+`rules/**`, `lab/**` ou `datasets/wazuh_logtest/**`, GitHub Actions :
+1. démarre un vrai manager `wazuh/wazuh-manager:4.9.2` dans Docker ;
+2. charge `rules/wazuh/local_rules.xml` et le valide (`wazuh-analysisd -t`) ;
+3. rejoue les 18 fichiers de `datasets/wazuh_logtest/` dans `wazuh-logtest`
+   (`lab/run_all.sh`) ;
+4. `lab/check_results.py` compare la **règle finale de chaque ligne** avec
+   `lab/expected.json` (y compris des « cette règle ne doit PAS se déclencher »
+   pour les cas négatifs) et échoue au moindre écart.
+
+Résultat au 2026-10-03 : **18/18**, après 4 runs.
+
+**L'histoire à raconter en entretien (ordre de chargement).** J'avais relu le code
+source de Wazuh et conclu que les règles sœurs étaient essayées par niveau
+décroissant : mes règles de niveau 13 devaient donc passer avant les règles
+intégrées de niveau 3 ou 6. La CI a dit le contraire :
+- run 1 : échec avant tout test (bug du contrôle de disponibilité dans
+  `lab/start.sh`) ;
+- run 2 : tous les cas Windows tombaient sur la règle 1002, car mon patch de test
+  de la règle 60000 n'enlevait pas `<category>ossec</category>` (je l'ai comparé
+  au `runtests.py` officiel de Wazuh) ; et 100192 ne se déclenchait jamais car la
+  règle intégrée **31108** (« simple queries », niveau 0) capturait le POST sans
+  query string ;
+- run 3 : 15/18. **92653** (succès RDP, niveau 3) capturait le 4624 avant 100122
+  (niveau 13), **92652** (succès NTLM) avant 100123, et 2 des 15 connexions Sysmon
+  finissaient sur **92106** via 92105, donc le compteur du scan de ports n'arrivait
+  qu'à 13 ;
+- correctif : rattacher les règles locales sous ces enfants intégrés
+  (`if_sid 60106, 92653`, `if_sid 60106, 92652`, `if_sid 61605, 92101…92110`,
+  `if_sid 31100,31108`) ; run 4 : 18/18.
+
+Morale : **l'analyse statique ne remplace pas l'exécution**. Sans test automatique,
+4 règles auraient été « écrites et relues » mais muettes une fois déployées.
+
+**Ce que la CI ne prouve pas.** Les lignes sont synthétiques et rejouées dans
+`wazuh-logtest` ; il n'y a pas encore d'agent Windows sur une vraie machine (cas 19
+de `docs/WAZUH-VALIDATION.md` : agent + Sysmon + vraie connexion RDP). Les taux de
+faux positifs sur de vrais journaux ne sont pas mesurés.
 
 ---
 
@@ -144,7 +195,7 @@ angles morts (faux négatifs).
 
 ---
 
-## 7. 16 questions d'entretien (avec réponses modèles)
+## 7. 20 questions d'entretien (avec réponses modèles)
 
 **Q1. Différence entre IDS, SIEM et EDR ?**
 Un **IDS** détecte des intrusions réseau/hôte via signatures/anomalies. Un **SIEM**
@@ -241,15 +292,50 @@ depuis l'extérieur correspond aussi à une devinette de mot de passe SMB/WinRM 
 du pass-the-hash. On exclut Kerberos type 3, qui est le bruit normal d'un domaine.
 On ne groupe **pas** par compte : en password spraying, le compte qui réussit
 n'est pas forcément celui qui a échoué. Côté Wazuh, la règle est un enfant de
-60106 (4624) avec `if_matched_sid` sur l'alerte de force brute et
-`same_field win.eventdata.ipAddress`, au niveau 13 pour passer avant la règle
-intégrée 40112 (niveau 12). Réponse à donner tant que Wazuh n'est pas déployé :
-« la logique est testée dans mon moteur et en Sigma ; côté Wazuh j'ai relu les SID
-parents et l'ordre d'évaluation dans le code source, et la checklist
-`docs/WAZUH-VALIDATION.md` est prête, mais je ne l'ai pas encore rejouée ». Suite
+60106 (4624) **et** de la règle intégrée 92653 (RDP) / 92652 (NTLM), qui
+capturait sinon l'évènement en premier, avec `if_matched_sid` sur l'alerte de
+force brute et `same_field win.eventdata.ipAddress`, au niveau 13. Réponse
+honnête : « la logique est testée dans mon moteur et en Sigma, et côté Wazuh elle
+est validée en CI sur un vrai manager 4.9.2 par rejeu `wazuh-logtest` (positif,
+négatif 7 échecs, négatif Kerberos) ; je ne l'ai pas encore vue sur un vrai agent
+Windows avec une vraie connexion RDP ». Suite
 de l'investigation : traiter le compte comme compromis et chercher ce qu'il a fait
 ensuite (4720/4732, 4698, 1102) — dans ce lab, c'est `administrator` qui crée
 `svc_helper` 7 minutes plus tard.
+
+**Q17. Pourquoi mettre des règles de détection en CI ?**
+Parce qu'une règle jamais exécutée n'est qu'une hypothèse. La CI rejoue des cas
+positifs **et** négatifs sur un vrai moteur Wazuh à chaque modification, et bloque
+toute régression (une mise à jour du ruleset intégré ou une règle voisine peut
+masquer la vôtre sans aucune erreur visible). C'est reproductible, gratuit
+(GitHub Actions + image Docker officielle), et le résultat est une preuve
+vérifiable, pas une affirmation.
+
+**Q18. Qu'est-ce qui a cassé, et comment l'avez-vous trouvé ?**
+Run 1 : bug du contrôle de disponibilité du manager dans mon script de démarrage.
+Run 2 : tous les cas Windows tombaient sur la règle 1002, ce qui m'a fait comparer
+mon patch de la règle 60000 avec le `runtests.py` officiel : il fallait aussi
+retirer `<category>ossec</category>`. Run 3 : 15/18 ; le comparateur
+`check_results.py` affichait, ligne par ligne, la règle obtenue (92653, 92652,
+92106) à la place de la règle attendue, ce qui désignait directement la règle
+intégrée qui « volait » l'évènement. Run 4 : 18/18.
+
+**Q19. Pourquoi la règle intégrée 31108 a-t-elle capturé l'évènement de 100192 ?**
+100192 (POST réussi vers un script dans un dossier d'upload) était enfant de 31100
+(accès web). Mais 31108 (« simple queries », niveau 0), autre enfant de 31100,
+chargée avant `local_rules.xml`, correspondait aussi au POST sans query string et
+gagnait : l'évènement s'arrêtait sur une règle de niveau 0, donc **aucune alerte**.
+Le niveau plus élevé de 100192 n'a pas suffi. Correctif : `if_sid 31100,31108`,
+pour que 100192 soit aussi évaluée comme enfant de 31108.
+
+**Q20. Qu'est-ce qui n'est pas encore validé ?**
+Le bout en bout : un vrai agent Wazuh sur Windows avec Sysmon, une vraie
+connexion RDP, et l'alerte 100122/100123 dans le dashboard (cas 19). La CI valide
+la logique des règles sur des lignes synthétiques rejouées dans `wazuh-logtest`,
+avec un patch temporaire de la règle 60000 propre au test ; elle ne valide ni la
+collecte par l'agent, ni le timing réel de corrélation, ni le taux de faux
+positifs sur de vrais journaux. Et la règle 100131 garde sa limite connue (pas de
+jointure par SID dans Wazuh).
 
 ---
 
@@ -257,12 +343,13 @@ ensuite (4720/4732, 4698, 1102) — dans ce lab, c'est `administrator` qui crée
 
 > **Projet — SOC Detection Lab (detection engineering, défensif).** Conception de
 > 12 détections mappées MITRE ATT&CK au format **Wazuh (XML)** et **Sigma (YAML,
-> validées par `sigma check`)**, et développement d'un **moteur de détection Python
-> offline** (corrélation par seuil / valeurs distinctes / séquence) exécuté sur des
-> **journaux synthétiques** (Linux, Windows Security, Sysmon, Apache) — **12/12
-> détections déclenchées**, aucune alerte sur la base bénigne synthétique avec
-> quasi-attaques (test de robustesse, pas un taux de faux positifs), **145 tests pytest** (entité, compte, bornes de seuil et de
-> fenêtre). *Moteur et règles réalisés ; règles Wazuh **pas encore rejouées** sur
-> un manager réel (checklist `wazuh-logtest` prête) ; le déploiement Wazuh
-> (manager/indexer/dashboard + agent + Sysmon) est documenté pour un déploiement
-> personnel sur ma machine.*
+> validées par `sigma check`)**, validées automatiquement en CI (GitHub Actions)
+> sur un vrai manager Wazuh 4.9.2 : 18/18 cas wazuh-logtest, dont négatifs ;
+> développement d'un **moteur de détection Python offline** (corrélation par seuil
+> / valeurs distinctes / séquence) exécuté sur des **journaux synthétiques**
+> (Linux, Windows Security, Sysmon, Apache) : **12/12 détections déclenchées**,
+> aucune alerte sur la base bénigne synthétique avec quasi-attaques, **145 tests
+> pytest**. *Agent Windows réel (Sysmon + RDP de bout en bout) : à venir.*
+
+À ne **pas** dire : « Wazuh déployé en production » ou « supervision en direct ».
+Il s'agit d'un manager en conteneur, en CI, qui rejoue des lignes synthétiques.

@@ -11,11 +11,14 @@ logs and produces a triage report.
 
 **Author:** Mohamed Elansari — cybersecurity student
 **Status:** The offline detection engine, rules, synthetic datasets and tests are
-**built and passing**. The live Wazuh deployment (SETUP.md) is designed to be run
-by the author on his own machine — it is **not** executed in this repository.
-**None of the Wazuh rules has been run on a real manager yet** (all 19 Wazuh rule
-IDs are untested); the replay checklist is ready in
-[`docs/WAZUH-VALIDATION.md`](docs/WAZUH-VALIDATION.md).
+**built and passing**. The Wazuh rules are **validated automatically in CI**
+(GitHub Actions) on a real **Wazuh 4.9.2 manager** in Docker: **18/18
+`wazuh-logtest` replay cases pass**, negatives included (see
+[Detection-as-code CI](#detection-as-code-ci) and
+[`docs/WAZUH-VALIDATION.md`](docs/WAZUH-VALIDATION.md)). These are synthetic lines
+replayed in `wazuh-logtest`: **no live agent yet** — the end-to-end case with a
+real Windows agent + Sysmon + real RDP (case 19) is still to do, and the full
+deployment in SETUP.md (indexer, dashboard, agents) has not been run.
 
 ---
 
@@ -111,6 +114,42 @@ Reports are written to `reports/triage.html` and `reports/alerts.json`.
 
 ---
 
+## Detection-as-code CI
+
+Workflow [`.github/workflows/wazuh-validation.yml`](.github/workflows/wazuh-validation.yml)
+runs on every push that touches `rules/**`, `lab/**` or `datasets/wazuh_logtest/**`:
+
+```mermaid
+flowchart LR
+    PUSH[git push<br/>rules / lab / datasets] --> GHA[GitHub Actions runner]
+    GHA --> MGR[wazuh/wazuh-manager:4.9.2<br/>Docker - lab/start.sh]
+    MGR --> LOAD[load local_rules.xml<br/>wazuh-analysisd -t]
+    LOAD --> REPLAY[replay 18 files<br/>datasets/wazuh_logtest<br/>lab/run_all.sh]
+    REPLAY --> CHECK{lab/check_results.py<br/>final rule id per line<br/>vs lab/expected.json}
+    CHECK -- all match --> PASS[build green]
+    CHECK -- any mismatch --> FAIL[build red]
+```
+
+- **Result (2026-10-03): 18/18 cases**, including 5 negative cases (7 failures
+  then success, Kerberos success, benign web look-alikes). Case 08 fires 100131 as
+  documented (known limitation: Wazuh cannot join the 4720 `TargetSid` with the
+  4732 `MemberSid`), which is the expected behaviour.
+- **It took 4 runs.** Run 1 failed on a readiness-check bug. Run 2: all Windows
+  events fell to rule 1002, because the test patch of rule 60000 must also drop
+  `<category>ossec</category>` (as Wazuh's own `runtests.py` does), and built-in
+  31108 (level 0) captured the POST meant for 100192. Run 3: 15/18 — built-in
+  92653 / 92652 captured the RDP / NTLM success before 100122 / 100123, and 2 of
+  15 Sysmon EID 3 events ended on 92106, so the port-scan counter reached 13.
+  Run 4: 18/18 after attaching the custom rules under those built-in children.
+- **Lesson:** reading the 4.9.2 source suggested that sibling rules are tried by
+  descending level; in practice the built-in children, loaded first, won. The
+  robust fix is to put custom rules under every built-in child that may capture
+  the event — and to keep the CI so this never regresses.
+- **What it does not prove:** the lines are synthetic and replayed in
+  `wazuh-logtest`. There is no agent on a real machine yet (case 19 pending).
+
+---
+
 ## Quick start
 
 ```bash
@@ -132,6 +171,7 @@ Open `reports/triage.html` in a browser to see the triage dashboard.
 
 ```
 soc-detection-lab/
+├── .github/workflows/        wazuh-validation.yml (detection-as-code CI)
 ├── README.md                 this file
 ├── LEARN.md                  SIEM concepts + interview Q&A (French)
 ├── requirements.txt
@@ -157,6 +197,7 @@ soc-detection-lab/
 │   ├── report.py             console + HTML rendering
 │   ├── run.py                CLI entry point
 │   └── rules/*.yaml          engine rules (one per detection)
+├── lab/                      CI scripts: start.sh, run_all.sh, check_results.py, expected.json
 ├── tools/make_wazuh_samples.py  dataset -> Wazuh eventchannel JSON replay files
 ├── tests/test_detector.py    pytest (entities, counts, edges, cross-format checks)
 └── reports/                  generated triage output
@@ -172,17 +213,13 @@ soc-detection-lab/
 - Rules are tuned against **synthetic** data with clean field names. Real logs are
   noisier; thresholds (e.g. 8 failures / 120s, 15 ports / 60s) will need tuning on
   live data to balance detection vs. false positives.
-- **Wazuh rules: untested on a real manager.** All 19 rule IDs (100110, 100111,
-  100121, 100122, 100123, 100130, 100131, 100140, 100150, 100151, 100160, 100170,
-  100171, 100180, 100181, 100190, 100191, 100192, 100200) are untested. Their
-  parent SIDs and the sibling evaluation order were checked against the Wazuh
-  **v4.9.2** source (`ruleset/rules`, `src/analysisd/rules_list.c`). That reading
-  showed that the original SSH/RDP counters (100110, 100121) would have been
-  **masked** by the built-in rules 5763 and 60204; they are now children of those
-  rules. The per-rule replay checklist (sample line, expected rule id/level,
-  result, screenshot) is [`docs/WAZUH-VALIDATION.md`](docs/WAZUH-VALIDATION.md).
-  Windows events cannot be tested in `wazuh-logtest` on a stock manager without a
-  temporary change to rule 60000 (explained there).
+- **Wazuh rules: validated in CI by logtest replay, not yet end to end.** All 19
+  rule IDs (100110 to 100200) are loaded on a real Wazuh 4.9.2 manager and the 18
+  `wazuh-logtest` cases pass in CI (see above). The Windows cases need a temporary
+  CI-only patch of rule 60000 (the one used by Wazuh's `runtests.py`), because
+  pasted eventchannel JSON is decoded as `json`. Still **not validated**: a real
+  Windows agent with Sysmon and a real RDP logon (checklist case 19). Correlation
+  timing on real agent traffic and real-log false-positive rates are untested.
 - Wazuh's "new local admin" rule (100131) correlates per host, not per SID, so it
   fires for "account A created, unrelated account B added to Administrators". The
   engine and Sigma join on the SID.
@@ -220,10 +257,16 @@ sur leur attaque, **0 faux positif** sur la base de référence bénigne (246
 sans erreur. La 12ᵉ détection couvre la **connexion RDP réussie après force
 brute** (T1110 + T1078), étape du rapport d'incident qui n'était pas détectée.
 
-Le **moteur offline + les règles sont réalisés** ; le **déploiement Wazuh réel**
-(voir `docs/SETUP.md`) est prévu pour être exécuté par Mohamed sur sa propre
-machine. **Aucune règle Wazuh n'a encore tourné sur un vrai manager** : la
-checklist `docs/WAZUH-VALIDATION.md` donne, règle par règle, la ligne à coller dans
-`wazuh-logtest`, la règle et le niveau attendus, et une colonne pour le résultat
-et la capture. Aucune API payante, aucun logiciel malveillant, aucune cible tierce ;
+Le **moteur offline + les règles sont réalisés** ; le **déploiement Wazuh complet**
+(manager + indexer + dashboard + agent, voir `docs/SETUP.md`) est prévu pour être exécuté par Mohamed sur sa propre
+machine. Les **règles Wazuh sont validées automatiquement en CI** (GitHub
+Actions, detection-as-code) sur un vrai manager **Wazuh 4.9.2** en Docker :
+**18/18 cas `wazuh-logtest`**, dont des cas négatifs ; tout écart avec
+`lab/expected.json` fait échouer le build. Il a fallu 4 runs : les règles intégrées
+enfants (92653, 92652, 92106, 31108), chargées en premier, capturaient les
+évènements avant les règles locales de niveau plus élevé ; le correctif a été de
+rattacher les règles locales sous ces enfants intégrés. **Pas encore fait :** le
+cas 19 (agent Windows réel + Sysmon + vraie connexion RDP) ; il s'agit de lignes
+synthétiques rejouées, pas d'une supervision en direct (détails :
+`docs/WAZUH-VALIDATION.md`). Aucune API payante, aucun logiciel malveillant, aucune cible tierce ;
 adresses IP en plages de documentation (RFC 5737) et privées (RFC 1918).

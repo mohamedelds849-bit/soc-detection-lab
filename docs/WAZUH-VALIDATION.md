@@ -1,16 +1,18 @@
 # WAZUH-VALIDATION — Checklist de validation des règles sur un vrai Wazuh
 
-> **Statut au 2026-10-03 : AUCUNE règle Wazuh de ce dépôt n'a encore été exécutée
-> sur un manager réel.** Les 19 règles de `rules/wazuh/local_rules.xml` (100110 à
-> 100200) sont **non testées**. Ce qui a été vérifié : XML bien formé, SID parents
-> et ordre d'évaluation relus dans le **code source** de Wazuh v4.9.2
-> (`ruleset/rules/*.xml`, `src/analysisd/rules_list.c`, `eventinfo.c`, `rules.c`),
-> et regex web shell (100190-100192) exécutées en Python par `pytest` sur les mêmes
-> exemples positifs/négatifs que le moteur. Cette checklist sert à remplacer
-> « non testé » par un vrai résultat, **règle par règle**.
+> **Statut au 2026-10-03 : 18/18 cas `wazuh-logtest` validés automatiquement en CI**
+> (GitHub Actions, workflow `.github/workflows/wazuh-validation.yml`) sur un **vrai
+> manager Wazuh 4.9.2** (image Docker `wazuh/wazuh-manager:4.9.2`), négatifs
+> compris. Les 19 règles de `rules/wazuh/local_rules.xml` (100110 à 100200) sont
+> chargées, validées par `wazuh-analysisd -t`, puis les 18 fichiers de
+> `datasets/wazuh_logtest/` sont rejoués (`lab/run_all.sh`) et
+> `lab/check_results.py` compare la règle finale de chaque ligne avec
+> `lab/expected.json` : tout écart fait échouer le build (detection-as-code).
 >
-> Ce travail (déployer Wazuh, rejouer, faire les captures) est à faire par
-> Mohamed lui-même (révision n°1 de l'audit).
+> **Ce qui n'est PAS encore validé : le cas 19** (bout en bout avec un vrai agent
+> Windows + Sysmon et une vraie connexion RDP). Il n'y a pas encore d'agent sur une
+> vraie machine. Les cas 1-18 sont des **lignes synthétiques rejouées** dans
+> `wazuh-logtest`, pas une supervision en direct.
 
 ---
 
@@ -21,13 +23,18 @@
 2. **Installer les règles** : voir `docs/SETUP.md` §3, puis
    `sudo systemctl restart wazuh-manager`. Vérifier qu'il n'y a pas d'erreur :
    `sudo grep -i "error\|warn" /var/ossec/logs/ossec.log | tail`.
-3. **Ordre des règles sœurs.** Dans Wazuh, les enfants d'une règle sont essayés
-   par **niveau décroissant**, puis dans l'ordre de chargement (les règles
-   intégrées avant `local_rules.xml`). Une règle intégrée de même niveau ou de
-   niveau supérieur, sur le même parent, gagne donc en premier. C'est pour cela que
-   100110 et 100121 sont maintenant des **enfants** des règles intégrées 5763 et
-   60204, et que 100111/100122/100123 sont au niveau 13 (au-dessus de 40112).
-   **À confirmer en logtest** : c'est la première chose qu'un analyste N2 vérifiera.
+3. **Ordre des règles sœurs (corrigé par la CI).** La lecture du code source
+   laissait penser que les enfants d'une règle sont essayés par **niveau
+   décroissant**, et donc qu'une règle locale de niveau plus élevé passerait avant
+   une règle intégrée sœur. **La CI a montré que c'est faux en pratique** : les
+   enfants intégrés, chargés avant `local_rules.xml`, ont capturé l'évènement avant
+   les règles locales sœurs de niveau supérieur (92653 niv. 3 avant 100122 niv. 13,
+   92652 avant 100123, 31108 niv. 0 avant 100192, 92106 via 92105 sur certains
+   Sysmon EID 3). **Correctif robuste** : rattacher la règle locale (`if_sid`) aussi
+   **sous les enfants intégrés** qui peuvent capturer l'évènement. D'où :
+   100122 `if_sid 60106, 92653`, 100123 `if_sid 60106, 92652`, 100170
+   `if_sid 61605, 92101…92110`, 100192 `if_sid 31100, 31108` (voir §4).
+   Le rattachement de 100110/100121 sous 5763/60204 suit la même logique.
 4. **Corrélation = heure de réception.** Les règles `frequency` / `if_matched_sid`
    comptent avec l'heure à laquelle le manager **reçoit** la ligne, pas avec le
    `systemTime` du log. Coller les lignes d'un même cas **en moins de 2 minutes**.
@@ -66,36 +73,36 @@
 
 ---
 
-## 1. Tableau de résultats (à remplir)
+## 1. Tableau de résultats (cas 1-18 remplis par la CI le 2026-10-03)
 
 Légende « Attendu » : chaîne de règles prévue d'après le code source 4.9.2.
 « Risque » : ce qui peut faire échouer le test.
 
 | # | Règle(s) | Fichier à coller | Attendu | Risque à surveiller | Résultat (OK / KO + règle obtenue) | Capture |
 |---|----------|------------------|---------|---------------------|-------------------------------------|---------|
-| 1 | 100110, 100111 | `01_ssh_bruteforce_then_success.log` (9 lignes) | l.1-7 : **5760** (niv. 5) ; l.8 : **5763 → 100110** (niv. 10) ; l.9 : **100111** (niv. 13) | Décodeur `sshd` ; 40112 (niv. 12) si 100111 ne gagne pas | | `01-logtest-ssh.png` |
-| 2 | 100110, 100111 (négatif) | `02_ssh_7_failures_then_success_NEGATIVE.log` (8) | l.1-7 : 5760 ; l.8 : **5715** (niv. 3). **Pas** de 100110 / 100111 | — | | `02-logtest-ssh-neg.png` |
-| 3 | 100121, **100122** | `03_rdp_bruteforce_then_rdp_success.log` (9) | l.1-7 : **60122** (niv. 5) ; l.8 : **60204 → 100121** (niv. 10) ; l.9 : **100122** (niv. 13) | Option A/B obligatoire ; 92653 (niv. 3) ou 40112 (niv. 12) à la place de 100122 | | `03-logtest-rdp-success.png` |
-| 4 | 100121, **100123** | `04_network_bruteforce_then_ntlm_success.log` (9) | l.8 : 100121 ; l.9 : **100123** (niv. 13) | 92652 (NTLM, niv. 6) à la place de 100123 | | `04-logtest-ntlm-success.png` |
-| 5 | 100123 (négatif) | `05_network_bruteforce_then_kerberos_success_NEGATIVE.log` (9) | l.8 : 100121 ; l.9 : **pas** 100122/100123 (attendu 92651 niv. 0, ou 40112) | — | | `05-logtest-kerberos-neg.png` |
-| 6 | 100121, 100122 (négatif) | `06_rdp_7_failures_then_success_NEGATIVE.log` (8) | l.1-7 : 60122 ; l.8 : **92653** (niv. 3). **Pas** de 100121 / 100122 | — | | `06-logtest-rdp-neg.png` |
-| 7 | 100130, 100131 | `07_new_account_added_to_admins.log` (2) | l.1 : **100130** (niv. 6, parent 60109) ; l.2 : **60154 → 100131** (niv. 10) | 60154 (niv. 12) reste l'alerte si 100131 ne matche pas | | `07-logtest-new-admin.png` |
-| 8 | 100131 (limite connue) | `08_unrelated_account_added_to_admins_KNOWN_LIMITATION.log` (2) | **100131 se déclenche quand même** (Wazuh ne peut pas joindre `targetSid` 4720 et `memberSid` 4732). Le moteur et Sigma, eux, ne déclenchent pas | Documenter le résultat tel quel | | `08-logtest-admin-limitation.png` |
-| 9 | 100140 | `09_encoded_powershell.log` (1) | **100140** (niv. 10) | **92057** (niv. 12) gagne si le parent est `powershell.exe` | | `09-logtest-encoded-ps.png` |
-| 10 | 100150 | `10_scheduled_task_4698.log` (1) | 60228 → **100150** (niv. 7) | — | | `10-logtest-4698.png` |
-| 11 | 100151 | `11_scheduled_task_schtasks.log` (1) | **100151** (niv. 7) | Règle Sysmon intégrée de niveau ≥ 7 sur `schtasks` | | `11-logtest-schtasks.png` |
-| 12 | 100160 | `12_security_log_cleared.log` (1) | 63103 (ou 60117) → **100160** (niv. 12) | Parent différent selon `providerName` | | `12-logtest-1102.png` |
-| 13 | 100170, 100171 | `13_port_scan_15_connections.log` (15) | l.1-14 : **100170** (niv. 3) ; l.15 : **100171** (niv. 10) | Compte des **connexions**, pas des ports distincts | | `13-logtest-portscan.png` |
-| 14 | 100180 | `14_defender_disable_command.log` (1) | **100180** (niv. 12), essayée avant 92007 (niv. 3) | — | | `14-logtest-defender-cmd.png` |
-| 15 | 100181 | `15_defender_5001.log` (1) | 62152 → **100181** (niv. 12) | Canal Defender / severityValue | | `15-logtest-defender-5001.png` |
-| 16 | 100200 | `16_office_spawns_shell.log` (1) | **100200** (niv. 10) | 92047 (mshta) ne s'applique pas ici | | `16-logtest-office.png` |
-| 17 | 100190, 100191, 100192 | `17_web_shell_requests.log` (4) | l.1 : **100190** ; l.2 : **100190** ; l.3 : **100192** ; l.4 : **100191** (tous niv. 10) | Décodeur `web-accesslog` : vérifier `srcip`, `protocol`, `url`, `id` en Phase 2 | | `17-logtest-webshell.png` |
-| 18 | 100190-100192 (négatif) | `18_web_lookalikes_NEGATIVE.log` (10) | **aucune** règle 1001xx (31100 / 31108, niv. 0) | `/search?q=evaluation` ne doit plus rien déclencher | | `18-logtest-web-neg.png` |
-| 19 | Bout en bout | ATTACK-SIMULATION §2 + §3 bis (RDP réel) | Alerte **100122** ou **100123** dans le dashboard | NLA : la réussite peut être 4624 type 3 puis type 10 | | `19-dashboard-rdp-success.png` |
+| 1 | 100110, 100111 | `01_ssh_bruteforce_then_success.log` (9 lignes) | l.1-7 : **5760** (niv. 5) ; l.8 : **5763 → 100110** (niv. 10) ; l.9 : **100111** (niv. 13) | Décodeur `sshd` ; 40112 (niv. 12) si 100111 ne gagne pas | **OK** — 5760×7, 100110, 100111 | CI run (GitHub Actions) |
+| 2 | 100110, 100111 (négatif) | `02_ssh_7_failures_then_success_NEGATIVE.log` (8) | l.1-7 : 5760 ; l.8 : **5715** (niv. 3). **Pas** de 100110 / 100111 | — | **OK** (négatif) — 5760×7, 5715 | CI run (GitHub Actions) |
+| 3 | 100121, **100122** | `03_rdp_bruteforce_then_rdp_success.log` (9) | l.1-7 : **60122** (niv. 5) ; l.8 : **60204 → 100121** (niv. 10) ; l.9 : **100122** (niv. 13) | Option A/B obligatoire ; 92653 (niv. 3) ou 40112 (niv. 12) à la place de 100122 | **OK** — 60122×7, 100121, 100122 (run 3 : KO, 92653) | CI run (GitHub Actions) |
+| 4 | 100121, **100123** | `04_network_bruteforce_then_ntlm_success.log` (9) | l.8 : 100121 ; l.9 : **100123** (niv. 13) | 92652 (NTLM, niv. 6) à la place de 100123 | **OK** — 60122×7, 100121, 100123 (run 3 : KO, 92652) | CI run (GitHub Actions) |
+| 5 | 100123 (négatif) | `05_network_bruteforce_then_kerberos_success_NEGATIVE.log` (9) | l.8 : 100121 ; l.9 : **pas** 100122/100123 (attendu 92651 niv. 0, ou 40112) | — | **OK** (négatif) — 60122×7, 100121, 92651 | CI run (GitHub Actions) |
+| 6 | 100121, 100122 (négatif) | `06_rdp_7_failures_then_success_NEGATIVE.log` (8) | l.1-7 : 60122 ; l.8 : **92653** (niv. 3). **Pas** de 100121 / 100122 | — | **OK** (négatif) — 60122×7, 92653 | CI run (GitHub Actions) |
+| 7 | 100130, 100131 | `07_new_account_added_to_admins.log` (2) | l.1 : **100130** (niv. 6, parent 60109) ; l.2 : **60154 → 100131** (niv. 10) | 60154 (niv. 12) reste l'alerte si 100131 ne matche pas | **OK** — 100130, 100131 | CI run (GitHub Actions) |
+| 8 | 100131 (limite connue) | `08_unrelated_account_added_to_admins_KNOWN_LIMITATION.log` (2) | **100131 se déclenche quand même** (Wazuh ne peut pas joindre `targetSid` 4720 et `memberSid` 4732). Le moteur et Sigma, eux, ne déclenchent pas | Documenter le résultat tel quel | **OK — limite connue confirmée** : 100130, 100131 | CI run (GitHub Actions) |
+| 9 | 100140 | `09_encoded_powershell.log` (1) | **100140** (niv. 10) | **92057** (niv. 12) gagne si le parent est `powershell.exe` | **OK** — 100140 | CI run (GitHub Actions) |
+| 10 | 100150 | `10_scheduled_task_4698.log` (1) | 60228 → **100150** (niv. 7) | — | **OK** — 100150 | CI run (GitHub Actions) |
+| 11 | 100151 | `11_scheduled_task_schtasks.log` (1) | **100151** (niv. 7) | Règle Sysmon intégrée de niveau ≥ 7 sur `schtasks` | **OK** — 100151 | CI run (GitHub Actions) |
+| 12 | 100160 | `12_security_log_cleared.log` (1) | 63103 (ou 60117) → **100160** (niv. 12) | Parent différent selon `providerName` | **OK** — 100160 | CI run (GitHub Actions) |
+| 13 | 100170, 100171 | `13_port_scan_15_connections.log` (15) | l.1-14 : **100170** (niv. 3) ; l.15 : **100171** (niv. 10) | Compte des **connexions**, pas des ports distincts | **OK** — 100170×14, 100171 (run 3 : KO, compteur à 13) | CI run (GitHub Actions) |
+| 14 | 100180 | `14_defender_disable_command.log` (1) | **100180** (niv. 12), essayée avant 92007 (niv. 3) | — | **OK** — 100180 | CI run (GitHub Actions) |
+| 15 | 100181 | `15_defender_5001.log` (1) | 62152 → **100181** (niv. 12) | Canal Defender / severityValue | **OK** — 100181 | CI run (GitHub Actions) |
+| 16 | 100200 | `16_office_spawns_shell.log` (1) | **100200** (niv. 10) | 92047 (mshta) ne s'applique pas ici | **OK** — 100200 | CI run (GitHub Actions) |
+| 17 | 100190, 100191, 100192 | `17_web_shell_requests.log` (4) | l.1 : **100190** ; l.2 : **100190** ; l.3 : **100192** ; l.4 : **100191** (tous niv. 10) | Décodeur `web-accesslog` : vérifier `srcip`, `protocol`, `url`, `id` en Phase 2 | **OK** — 100190, 100190, 100192, 100191 (run 2 : 100192 KO, 31108) | CI run (GitHub Actions) |
+| 18 | 100190-100192 (négatif) | `18_web_lookalikes_NEGATIVE.log` (10) | **aucune** règle 1001xx (31100 / 31108, niv. 0) | `/search?q=evaluation` ne doit plus rien déclencher | **OK** (négatif) — 31100 / 31108 uniquement, aucune 1001xx | CI run (GitHub Actions) |
+| 19 | Bout en bout | ATTACK-SIMULATION §2 + §3 bis (RDP réel) | Alerte **100122** ou **100123** dans le dashboard | NLA : la réussite peut être 4624 type 3 puis type 10 | **En attente** (pas encore d'agent Windows sur une vraie machine) | `19-dashboard-rdp-success.png` (à faire) |
 
-Après le remplissage : reporter le tableau OK / KO dans le README (section
-« Limitations ») et corriger chaque règle KO (souvent : la rattacher comme enfant
-de la règle intégrée qui gagne, avec `if_sid`).
+Résultats obtenus par le run 4 de la CI (voir §4). Les preuves sont les logs du
+job GitHub Actions et les fichiers `lab/results/*.txt` produits par
+`lab/run_all.sh`. Le cas 19 reste à faire avec un vrai agent Windows.
 
 ---
 
@@ -226,3 +233,29 @@ Coller les 10 lignes du fichier, par exemple :
 | Succès après force brute (03, 12) | ≥ 8 échecs dans les 180 s qui précèdent le succès | succès dans les 180 s qui suivent l'alerte de force brute |
 | Nouveau compte admin (04) | jointure 4720 `TargetSid` = 4732 `MemberSid` | corrélation par hôte (agent) seulement : limite du cas 8 |
 | Scan de ports (08) | ports **distincts** | nombre de **connexions** |
+
+---
+
+## 4. Historique CI (GitHub Actions, 2026-10-03)
+
+Le workflow `.github/workflows/wazuh-validation.yml` se lance à chaque push qui
+touche `rules/**`, `lab/**` ou `datasets/wazuh_logtest/**` :
+
+1. démarre `wazuh/wazuh-manager:4.9.2` dans Docker (`lab/start.sh`) ;
+2. charge `rules/wazuh/local_rules.xml` et le valide avec `wazuh-analysisd -t` ;
+3. rejoue les 18 fichiers de `datasets/wazuh_logtest/` (`lab/run_all.sh`) ;
+4. `lab/check_results.py` compare la règle finale de chaque ligne avec
+   `lab/expected.json` et **fait échouer le build** au moindre écart.
+
+| Run | Résultat | Cause | Correctif | Ce que ça a appris |
+|-----|----------|-------|-----------|--------------------|
+| 1 | Échec avant tout test | Bug du contrôle de disponibilité du manager dans `lab/start.sh` | Contrôle de disponibilité robuste + diagnostics en cas d'échec | Un pipeline doit dire *pourquoi* il échoue (logs du manager affichés) |
+| 2 | SSH + web OK, **tous les cas Windows KO** (règle 1002) ; 100192 jamais déclenchée | (a) le patch de test de la règle 60000 doit **aussi** retirer `<category>ossec</category>`, comme `ruleset/testing/runtests.py` ; (b) la règle intégrée **31108** (« simple queries », niv. 0) capture un POST sans query string avant 100192 | Patch 60000 à la façon de `runtests.py` ; 100192 `if_sid 31100,31108` | Reproduire exactement le banc de test officiel ; une règle intégrée de niveau 0 peut « avaler » un évènement |
+| 3 | **15/18** — KO 03, 04, 13 | 03 : **92653** (succès RDP) capture le 4624 avant 100122 ; 04 : **92652** (succès NTLM) avant 100123 ; 13 : 2 des 15 Sysmon EID 3 finissent sur **92106** via 92105, le compteur 100170 n'atteint que 13 | 100122 `if_sid 60106, 92653` ; 100123 `if_sid 60106, 92652` ; 100170 `if_sid 61605, 92101…92110` | Les règles sœurs ne sont **pas** essayées par niveau décroissant en pratique : les enfants intégrés, chargés d'abord, gagnent. Il faut rattacher la règle locale sous ceux-ci |
+| 4 | **18/18** | — | — | Le cas 8 déclenche 100131 comme documenté (limite connue, comportement attendu) |
+
+**Leçon principale.** L'analyse statique du code source (§0 point 3, ancienne
+version) prédisait que les règles locales de niveau élevé passeraient avant les
+enfants intégrés de même parent. C'était faux pour 4 règles. Seule l'exécution sur
+un vrai moteur l'a montré, et la CI empêche désormais toute régression.
+

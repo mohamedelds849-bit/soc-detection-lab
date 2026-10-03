@@ -156,8 +156,9 @@ Actions immédiates recommandées :
 - **Angle mort « succès RDP après force brute » : comblé (révision 1).** La règle
   n°12 corrèle ≥ 8 échecs 4625 (LogonType 3/10) puis un 4624 réussi (LogonType 10,
   ou 3 avec NTLM) depuis la même IP en 180 s. Elle existe dans les trois formats
-  (moteur, Sigma `temporal_ordered`, Wazuh 100122/100123) ; la version Wazuh reste
-  à rejouer sur un vrai manager (`docs/WAZUH-VALIDATION.md`).
+  (moteur, Sigma `temporal_ordered`, Wazuh 100122/100123) ; la version Wazuh est
+  validée en CI sur un vrai manager 4.9.2 par rejeu `wazuh-logtest`
+  (`docs/WAZUH-VALIDATION.md`), pas encore sur un vrai agent Windows.
 - **Principe du moindre privilège :** surveiller toute création de compte admin
   (déjà couvert, T1098/T1136).
 
@@ -180,7 +181,10 @@ Limites à garder en tête :
 - La règle n°12 a été testée sur le moteur offline (cas positifs et négatifs :
   7 échecs, succès Kerberos, autre IP, succès avant les échecs, fenêtre de 180 s
   contre 181 s) et validée en Sigma (`sigma check`). La version **Wazuh**
-  (100122/100123) n'a **pas encore été exécutée** sur un manager réel.
+  (100122/100123) est **validée en CI** (GitHub Actions) sur un vrai manager
+  Wazuh 4.9.2 par rejeu `wazuh-logtest` des lignes synthétiques (cas positifs RDP
+  et NTLM, négatifs 7 échecs et Kerberos). Elle n'a **pas encore été vue de bout
+  en bout** avec un vrai agent Windows et une vraie connexion RDP (cas 19).
 - Côté Wazuh, la règle « nouveau compte admin » (100131) corrèle par hôte et non
   par SID ; elle peut se déclencher si un compte A est créé puis un compte B
   différent ajouté aux Administrateurs. Le moteur et Sigma joignent sur le SID.
