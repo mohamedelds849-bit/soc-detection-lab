@@ -56,15 +56,20 @@ whole directory. There is no official pySigma backend for Wazuh, which is why th
 Wazuh rules are hand-written. The Splunk backend does not support
 `temporal_ordered` correlations.
 
-## Wazuh design notes (read from the v4.9.2 source, not yet confirmed live)
+## Wazuh design notes (validated in CI on Wazuh 4.9.2, 2026-10-03)
 
-- **Sibling order.** Children of a rule are evaluated by descending level, then in
-  load order (`src/analysisd/rules_list.c`, `_OS_AddRule`). Built-in rules load
-  before `local_rules.xml`, so a built-in sibling with the same level wins. The
-  built-in brute-force rules 5763 (SSH) and 60204 (Windows) use the same
+- **Sibling order — corrected by the CI run.** The first design assumed children of
+  a rule are tried by descending level. On a real Wazuh 4.9.2 manager this did
+  **not** protect the custom rules: built-in children loaded earlier captured the
+  events first (92653 / 92652 took the RDP / NTLM successes from 100122 / 100123,
+  31108 took the POST without query string from 100192, 92105 → 92106 took 2 of the
+  15 Sysmon EID 3 events from the 100170 counter). The robust pattern is to attach
+  custom rules **under the built-in child rules that may capture the event**
+  (`<if_sid>60106, 92653</if_sid>`, `<if_sid>31100,31108</if_sid>`, …), which is
+  also what Wazuh's own ruleset does. See `docs/WAZUH-VALIDATION.md` §4.
+- The built-in brute-force rules 5763 (SSH) and 60204 (Windows) use the same
   threshold as the lab (8 events), so the custom counters are attached as their
-  **children** instead of competing with them. The success-after-brute-force
-  rules use level 13 so they are tried before the built-in 40112 (level 12).
+  **children** instead of competing with them.
 - **frequency.** `frequency="8"` fires on the 8th matching event (the loader
   subtracts 2, see `rules.c`; confirmed by the 8-line `sshd.ini` test for 5763).
 - **Correlation scope and time.** Per agent by default; the time window is the
