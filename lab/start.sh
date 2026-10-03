@@ -24,3 +24,9 @@ fi
 docker exec "$NAME" /var/ossec/bin/wazuh-control info | head -3
 echo "[3/3] Deploying lab rules"
 bash "$(dirname "$0")/deploy_rules.sh"
+
+# In CI (GitHub sets CI=true) also replay + check here: this step is not piped through `tee`, so a failing
+# check_results.py really fails the build (the later "Replay" step runs without pipefail).
+if [[ "${CI:-}" == "true" ]]; then
+  bash "$(dirname "$0")/run_all.sh"
+fi

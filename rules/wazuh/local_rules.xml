@@ -29,11 +29,12 @@
   with lab-specific grouping/thresholds. If a built-in sibling wins the match
   in wazuh-logtest, attach the custom rule as a child of that built-in rule.
 
-  Rule ORDER matters (checked in src/analysisd/rules_list.c, _OS_AddRule, v4.9.2):
-  the children of a rule are evaluated by DESCENDING level, and on equal level in
-  load order, so a built-in sibling with the same or higher level is tried first
-  and, if it matches, the custom sibling is never evaluated for that event.
-  Consequences applied below (revision round 1):
+  Rule ORDER matters. The first design assumed children are tried by DESCENDING level.
+  CI on a real Wazuh 4.9.2 manager (2026-10-03) showed that built-in children loaded
+  earlier still captured events before higher-level custom siblings (92653, 92652,
+  31108, 92106). Robust pattern used below: attach custom rules UNDER the built-in
+  child rules that may capture the event (see docs/WAZUH-VALIDATION.md section 4).
+  Consequences applied below:
     - SSH brute force: built-in 5763 (level 10, 8 failures/120s, same parent 5760)
       would always win over a custom level-10 frequency rule -> 100110 is now a
       CHILD of 5763 (enrichment) instead of a competing sibling.
@@ -46,7 +47,8 @@
   Correlation (frequency / if_matched_sid) is per agent by default and uses the
   time the manager RECEIVED the events, not the event timestamp. When replaying
   in wazuh-logtest, paste the lines of one sequence within the timeframe.
-  None of this has been run on a live manager yet: see docs/WAZUH-VALIDATION.md.
+  Validated in CI (GitHub Actions, wazuh-manager 4.9.2): 18/18 wazuh-logtest cases,
+  see .github/workflows/wazuh-validation.yml and lab/expected.json.
 
   Regex: Wazuh's default regex engine (OSRegex) does NOT support (?i), ?, [..]
   or {n}; every field that uses PCRE syntax therefore declares type="pcre2".
@@ -111,9 +113,9 @@
 
   <!-- =============================================================
        T1110 + T1078 - remote logon SUCCESS after the brute force (rule 12)
-       Built-in 60106 = "Windows Logon Success" (4624). Its built-in children
-       92651/92653 (level 0/3) and 40112 (level 12) are tried AFTER these
-       level-13 rules; only 92656 (level 15, RDP from loopback) comes first.
+       Built-in 60106 = "Windows Logon Success" (4624). In CI its built-in
+       children 92651 -> 92653 (RDP) / 92652 (NTLM) captured the event first,
+       so 100122 / 100123 are also attached under 92653 / 92652.
        100122: RDP (logonType 10).
        100123: network logon (logonType 3) with NTLM - NLA credential check,
                SMB/WinRM password guessing, pass-the-hash.

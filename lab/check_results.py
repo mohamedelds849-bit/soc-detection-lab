@@ -6,7 +6,7 @@ expected = {k: v for k, v in json.load(open(os.path.join(HERE, "expected.json"),
 
 
 def final_ids(text):
-    """Final rule id of each event: the last `id:` inside each Phase 3 block (Phase 2 may also print an `id` field)."""
+    """Final rule id of each event: the first `id:` after "**Phase 3:" (Phase 2 can also print a decoded `id` field, e.g. HTTP status)."""
     out = []
     for block in text.split("**Phase 1:")[1:]:
         phase3 = block.split("**Phase 3:", 1)
