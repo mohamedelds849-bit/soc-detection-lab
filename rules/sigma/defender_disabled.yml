@@ -1,0 +1,24 @@
+title: Microsoft Defender Real-Time Protection Disabled
+id: 7a1e0c10-0009-4a00-9a09-defoff0000009
+status: experimental
+description: Detects disabling of Microsoft Defender real-time monitoring via Set-MpPreference, a common defense-evasion step.
+references:
+  - https://attack.mitre.org/techniques/T1562/001/
+author: Mohamed Elansari
+date: 2026/03/10
+logsource:
+  product: windows
+  category: process_creation
+detection:
+  selection:
+    CommandLine|contains: 'DisableRealtimeMonitoring'
+  condition: selection
+fields:
+  - CommandLine
+  - User
+falsepositives:
+  - Authorized maintenance that temporarily disables AV
+level: critical
+tags:
+  - attack.defense-evasion
+  - attack.t1562.001

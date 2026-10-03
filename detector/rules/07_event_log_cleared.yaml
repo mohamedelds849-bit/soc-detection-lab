@@ -1,0 +1,16 @@
+id: event_log_cleared
+name: Windows Security event log cleared
+attack: T1070.001
+severity: high
+type: single
+entity_field: host
+match:
+  all:
+    - field: source
+      equals: win_security
+    - field: event_id
+      equals: 1102
+triage: >
+  The Windows Security audit log was cleared (EventID 1102). This is a classic
+  anti-forensics / defense-evasion action. Correlate with the account that
+  performed it and any activity immediately preceding the clear.

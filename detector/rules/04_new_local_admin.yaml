@@ -1,0 +1,28 @@
+id: new_local_admin
+name: New local account added to Administrators
+attack: T1136.001 / T1098
+severity: high
+type: sequence
+group_by: [host]
+window_seconds: 120
+steps:
+  - match:
+      all:
+        - field: source
+          equals: win_security
+        - field: event_id
+          equals: 4720
+    min_count: 1
+  - match:
+      all:
+        - field: source
+          equals: win_security
+        - field: event_id
+          equals: 4732
+        - field: GroupName
+          equals: Administrators
+    min_count: 1
+triage: >
+  A local account was created (EventID 4720) and shortly after added to the
+  Administrators group (EventID 4732) on the same host. Confirm this change was
+  authorized; attackers create admin accounts for persistence and privilege.

@@ -1,0 +1,26 @@
+id: success_after_failures
+name: Successful login after many failures (likely credential compromise)
+attack: T1110
+severity: critical
+type: sequence
+group_by: [src_ip]
+window_seconds: 180
+steps:
+  - match:
+      all:
+        - field: source
+          equals: linux_auth
+        - field: event_type
+          equals: ssh_auth_failure
+    min_count: 8
+  - match:
+      all:
+        - field: source
+          equals: linux_auth
+        - field: event_type
+          equals: ssh_auth_success
+    min_count: 1
+triage: >
+  A successful SSH login followed 8+ failed attempts from the SAME source IP
+  within 3 minutes. Treat the account as potentially compromised: force password
+  reset, inspect the session, and hunt for follow-on activity.

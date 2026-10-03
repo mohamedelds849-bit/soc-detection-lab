@@ -1,0 +1,27 @@
+title: Suspicious PowerShell Encoded Command
+id: 7a1e0c10-0005-4a00-9a05-encodedps00005
+status: experimental
+description: Detects PowerShell launched with an -EncodedCommand / -enc argument, commonly used to obfuscate command intent.
+references:
+  - https://attack.mitre.org/techniques/T1059/001/
+author: Mohamed Elansari
+date: 2026/03/10
+logsource:
+  product: windows
+  category: process_creation
+detection:
+  selection_img:
+    Image|endswith: '\powershell.exe'
+  selection_enc:
+    CommandLine|re: '(?i)-enc(odedcommand)?\s'
+  condition: selection_img and selection_enc
+fields:
+  - CommandLine
+  - ParentImage
+  - User
+falsepositives:
+  - Legitimate administration or software that uses encoded commands
+level: high
+tags:
+  - attack.execution
+  - attack.t1059.001

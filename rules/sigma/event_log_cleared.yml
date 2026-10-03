@@ -1,0 +1,23 @@
+title: Windows Security Event Log Cleared
+id: 7a1e0c10-0007-4a00-9a07-logcleared0007
+status: experimental
+description: Detects clearing of the Windows Security audit log (EventID 1102), a defense-evasion / anti-forensics action.
+references:
+  - https://attack.mitre.org/techniques/T1070/001/
+author: Mohamed Elansari
+date: 2026/03/10
+logsource:
+  product: windows
+  service: security
+detection:
+  selection:
+    EventID: 1102
+  condition: selection
+fields:
+  - SubjectUserName
+falsepositives:
+  - Rare authorized log maintenance
+level: high
+tags:
+  - attack.defense-evasion
+  - attack.t1070.001

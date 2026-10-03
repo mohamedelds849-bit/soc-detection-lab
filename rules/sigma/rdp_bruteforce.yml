@@ -1,0 +1,30 @@
+title: RDP / Windows Logon Brute Force From Single Source
+id: 7a1e0c10-0002-4a00-9a02-rdp0bruteforce2
+status: experimental
+description: Detects 8 or more failed Windows logons (EventID 4625, network/RemoteInteractive logon types) from one source IP within a short window.
+references:
+  - https://attack.mitre.org/techniques/T1110/
+author: Mohamed Elansari
+date: 2026/03/10
+logsource:
+  product: windows
+  service: security
+detection:
+  selection:
+    EventID: 4625
+    LogonType:
+      - 3
+      - 10
+  timeframe: 2m
+  condition: selection | count() by IpAddress >= 8
+fields:
+  - IpAddress
+  - TargetUserName
+  - LogonType
+falsepositives:
+  - Service account with an expired password
+  - Vulnerability scanner authenticating against the host
+level: high
+tags:
+  - attack.credential-access
+  - attack.t1110

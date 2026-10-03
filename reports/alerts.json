@@ -1,0 +1,237 @@
+[
+  {
+    "rule_id": "ssh_bruteforce",
+    "name": "SSH Brute Force (multiple failed logins from one source)",
+    "attack": "T1110",
+    "severity": "high",
+    "source": "linux_auth",
+    "ts": 1773131734.0,
+    "entity": "src_ip=203.0.113.66",
+    "count": 8,
+    "triage": "8+ SSH authentication failures from a single source IP within 2 minutes. Check whether a successful login followed (credential compromise), block the source IP at the firewall, and review the targeted account.\n",
+    "evidence": [
+      "Mar 10 08:35:06 lab-web01 sshd[7222]: Failed password for mohamed from 203.0.113.66 port 49996 ssh2",
+      "Mar 10 08:35:09 lab-web01 sshd[6584]: Failed password for mohamed from 203.0.113.66 port 47816 ssh2",
+      "Mar 10 08:35:15 lab-web01 sshd[7038]: Failed password for mohamed from 203.0.113.66 port 44697 ssh2",
+      "Mar 10 08:35:19 lab-web01 sshd[5914]: Failed password for mohamed from 203.0.113.66 port 46975 ssh2",
+      "Mar 10 08:35:22 lab-web01 sshd[3230]: Failed password for mohamed from 203.0.113.66 port 51144 ssh2"
+    ],
+    "time": "2026-03-10 08:35:34Z"
+  },
+  {
+    "rule_id": "success_after_failures",
+    "name": "Successful login after many failures (likely credential compromise)",
+    "attack": "T1110",
+    "severity": "critical",
+    "source": "linux_auth",
+    "ts": 1773131760.0,
+    "entity": "src_ip=203.0.113.66",
+    "count": 9,
+    "triage": "A successful SSH login followed 8+ failed attempts from the SAME source IP within 3 minutes. Treat the account as potentially compromised: force password reset, inspect the session, and hunt for follow-on activity.\n",
+    "evidence": [
+      "Mar 10 08:35:06 lab-web01 sshd[7222]: Failed password for mohamed from 203.0.113.66 port 49996 ssh2",
+      "Mar 10 08:35:09 lab-web01 sshd[6584]: Failed password for mohamed from 203.0.113.66 port 47816 ssh2",
+      "Mar 10 08:35:15 lab-web01 sshd[7038]: Failed password for mohamed from 203.0.113.66 port 44697 ssh2",
+      "Mar 10 08:35:19 lab-web01 sshd[5914]: Failed password for mohamed from 203.0.113.66 port 46975 ssh2",
+      "Mar 10 08:35:22 lab-web01 sshd[3230]: Failed password for mohamed from 203.0.113.66 port 51144 ssh2",
+      "Mar 10 08:35:26 lab-web01 sshd[8512]: Failed password for mohamed from 203.0.113.66 port 57782 ssh2"
+    ],
+    "time": "2026-03-10 08:36:00Z"
+  },
+  {
+    "rule_id": "rdp_bruteforce",
+    "name": "RDP Brute Force (multiple failed Windows logons from one source)",
+    "attack": "T1110",
+    "severity": "high",
+    "source": "win_security",
+    "ts": 1773132634.0,
+    "entity": "src_ip=198.51.100.77",
+    "count": 8,
+    "triage": "8+ failed Windows logons (EventID 4625, network/RDP logon type) from one source IP within 2 minutes. Investigate the source, confirm no successful 4624 followed, and consider account lockout / NLA enforcement.\n",
+    "evidence": [
+      "{\"@timestamp\": \"2026-03-10T08:50:05.000Z\", \"host\": \"LAB-WIN11\", \"channel\": \"Security\", \"EventID\": 4625, \"TargetUserName\": \"administrator\", \"LogonType\": 10, \"IpAddress\": \"198.51.100.77\", \"Status\": \"0xC000006A\"}",
+      "{\"@timestamp\": \"2026-03-10T08:50:09.000Z\", \"host\": \"LAB-WIN11\", \"channel\": \"Security\", \"EventID\": 4625, \"TargetUserName\": \"administrator\", \"LogonType\": 10, \"IpAddress\": \"198.51.100.77\", \"Status\": \"0xC000006A\"}",
+      "{\"@timestamp\": \"2026-03-10T08:50:16.000Z\", \"host\": \"LAB-WIN11\", \"channel\": \"Security\", \"EventID\": 4625, \"TargetUserName\": \"administrator\", \"LogonType\": 10, \"IpAddress\": \"198.51.100.77\", \"Status\": \"0xC000006A\"}",
+      "{\"@timestamp\": \"2026-03-10T08:50:21.000Z\", \"host\": \"LAB-WIN11\", \"channel\": \"Security\", \"EventID\": 4625, \"TargetUserName\": \"administrator\", \"LogonType\": 10, \"IpAddress\": \"198.51.100.77\", \"Status\": \"0xC000006A\"}",
+      "{\"@timestamp\": \"2026-03-10T08:50:24.000Z\", \"host\": \"LAB-WIN11\", \"channel\": \"Security\", \"EventID\": 4625, \"TargetUserName\": \"administrator\", \"LogonType\": 10, \"IpAddress\": \"198.51.100.77\", \"Status\": \"0xC000006A\"}"
+    ],
+    "time": "2026-03-10 08:50:34Z"
+  },
+  {
+    "rule_id": "new_local_admin",
+    "name": "New local account added to Administrators",
+    "attack": "T1136.001 / T1098",
+    "severity": "high",
+    "source": "win_security",
+    "ts": 1773133088.0,
+    "entity": "host=LAB-WIN11",
+    "count": 2,
+    "triage": "A local account was created (EventID 4720) and shortly after added to the Administrators group (EventID 4732) on the same host. Confirm this change was authorized; attackers create admin accounts for persistence and privilege.\n",
+    "evidence": [
+      "{\"@timestamp\": \"2026-03-10T08:58:00.000Z\", \"host\": \"LAB-WIN11\", \"channel\": \"Security\", \"EventID\": 4720, \"TargetUserName\": \"svc_helper\", \"SubjectUserName\": \"administrator\"}",
+      "{\"@timestamp\": \"2026-03-10T08:58:08.000Z\", \"host\": \"LAB-WIN11\", \"channel\": \"Security\", \"EventID\": 4732, \"TargetUserName\": \"svc_helper\", \"GroupName\": \"Administrators\", \"SubjectUserName\": \"administrator\"}"
+    ],
+    "time": "2026-03-10 08:58:08Z"
+  },
+  {
+    "rule_id": "encoded_powershell",
+    "name": "Suspicious PowerShell encoded command",
+    "attack": "T1059.001",
+    "severity": "high",
+    "source": "sysmon",
+    "ts": 1773133200.0,
+    "entity": "LAB-WIN11",
+    "count": 1,
+    "triage": "PowerShell launched with an -EncodedCommand / -enc argument. Attackers use base64-encoded commands to hide intent. Decode the command, review the parent process, and confirm whether it was an approved admin/automation action.\n",
+    "evidence": [
+      "{\"@timestamp\": \"2026-03-10T09:00:00.000Z\", \"host\": \"LAB-WIN11\", \"channel\": \"Microsoft-Windows-Sysmon/Operational\", \"EventID\": 1, \"Image\": \"C:\\\\Windows\\\\System32\\\\WindowsPowerShell\\\\v1.0\\\\powershell.exe\", \"ParentImage\": \"C:\\\\Windows\\\\System32\\\\cmd.exe\", \"CommandLine\": \"powershell.exe -NoProfile -EncodedCommand VwByAGkAdABlAC0ATwB1AHQAcAB1AHQAIABoAGUAbABsAG8A\", \"User\": \"LAB-WIN11\\\\mohamed\"}"
+    ],
+    "time": "2026-03-10 09:00:00Z"
+  },
+  {
+    "rule_id": "scheduled_task_creation",
+    "name": "Scheduled task created",
+    "attack": "T1053.005",
+    "severity": "medium",
+    "source": "win_security",
+    "ts": 1773133260.0,
+    "entity": "LAB-WIN11",
+    "count": 1,
+    "triage": "A scheduled task was created (Security EventID 4698 or schtasks.exe execution). Scheduled tasks are a common persistence mechanism. Verify the task name, the action it runs, and the user that created it against change records.\n",
+    "evidence": [
+      "{\"@timestamp\": \"2026-03-10T09:01:00.000Z\", \"host\": \"LAB-WIN11\", \"channel\": \"Security\", \"EventID\": 4698, \"TaskName\": \"\\\\Updater\", \"SubjectUserName\": \"mohamed\"}"
+    ],
+    "time": "2026-03-10 09:01:00Z"
+  },
+  {
+    "rule_id": "scheduled_task_creation",
+    "name": "Scheduled task created",
+    "attack": "T1053.005",
+    "severity": "medium",
+    "source": "sysmon",
+    "ts": 1773133261.0,
+    "entity": "LAB-WIN11",
+    "count": 1,
+    "triage": "A scheduled task was created (Security EventID 4698 or schtasks.exe execution). Scheduled tasks are a common persistence mechanism. Verify the task name, the action it runs, and the user that created it against change records.\n",
+    "evidence": [
+      "{\"@timestamp\": \"2026-03-10T09:01:01.000Z\", \"host\": \"LAB-WIN11\", \"channel\": \"Microsoft-Windows-Sysmon/Operational\", \"EventID\": 1, \"Image\": \"C:\\\\Windows\\\\System32\\\\schtasks.exe\", \"ParentImage\": \"C:\\\\Windows\\\\System32\\\\cmd.exe\", \"CommandLine\": \"schtasks.exe /create /tn \\\"Updater\\\" /tr \\\"cmd.exe /c whoami\\\" /sc minute /mo 5\", \"User\": \"LAB-WIN11\\\\mohamed\"}"
+    ],
+    "time": "2026-03-10 09:01:01Z"
+  },
+  {
+    "rule_id": "event_log_cleared",
+    "name": "Windows Security event log cleared",
+    "attack": "T1070.001",
+    "severity": "high",
+    "source": "win_security",
+    "ts": 1773133320.0,
+    "entity": "LAB-WIN11",
+    "count": 1,
+    "triage": "The Windows Security audit log was cleared (EventID 1102). This is a classic anti-forensics / defense-evasion action. Correlate with the account that performed it and any activity immediately preceding the clear.\n",
+    "evidence": [
+      "{\"@timestamp\": \"2026-03-10T09:02:00.000Z\", \"host\": \"LAB-WIN11\", \"channel\": \"Security\", \"EventID\": 1102, \"SubjectUserName\": \"administrator\", \"Message\": \"The audit log was cleared.\"}"
+    ],
+    "time": "2026-03-10 09:02:00Z"
+  },
+  {
+    "rule_id": "port_scan",
+    "name": "Port scan from a single source (many distinct destination ports)",
+    "attack": "T1046",
+    "severity": "medium",
+    "source": "sysmon",
+    "ts": 1773133388.0,
+    "entity": "src_ip=203.0.113.90",
+    "count": 15,
+    "triage": "A single source IP contacted 15+ distinct destination ports within 60 seconds (network connection EventID 3). This pattern indicates host/port scanning or service discovery. Identify the source and whether it is an authorized scanner.\n",
+    "evidence": [
+      "dest_port=21",
+      "dest_port=22",
+      "dest_port=23",
+      "dest_port=25",
+      "dest_port=53",
+      "dest_port=80",
+      "dest_port=110",
+      "dest_port=135",
+      "dest_port=139",
+      "dest_port=143",
+      "dest_port=443",
+      "dest_port=445"
+    ],
+    "time": "2026-03-10 09:03:08Z"
+  },
+  {
+    "rule_id": "defender_disabled",
+    "name": "Microsoft Defender real-time protection disabled",
+    "attack": "T1562.001",
+    "severity": "critical",
+    "source": "sysmon",
+    "ts": 1773133440.0,
+    "entity": "LAB-WIN11",
+    "count": 1,
+    "triage": "A command disabled Microsoft Defender real-time monitoring (Set-MpPreference -DisableRealtimeMonitoring $true). This is defense evasion and should almost never happen outside maintenance windows. Re-enable protection and investigate the account/host immediately.\n",
+    "evidence": [
+      "{\"@timestamp\": \"2026-03-10T09:04:00.000Z\", \"host\": \"LAB-WIN11\", \"channel\": \"Microsoft-Windows-Sysmon/Operational\", \"EventID\": 1, \"Image\": \"C:\\\\Windows\\\\System32\\\\WindowsPowerShell\\\\v1.0\\\\powershell.exe\", \"ParentImage\": \"C:\\\\Windows\\\\System32\\\\cmd.exe\", \"CommandLine\": \"powershell.exe Set-MpPreference -DisableRealtimeMonitoring $true\", \"User\": \"LAB-WIN11\\\\administrator\"}"
+    ],
+    "time": "2026-03-10 09:04:00Z"
+  },
+  {
+    "rule_id": "web_shell_request",
+    "name": "Web shell-like request in web access logs",
+    "attack": "T1505.003",
+    "severity": "high",
+    "source": "apache",
+    "ts": 1773133507.0,
+    "entity": "192.0.2.44",
+    "count": 1,
+    "triage": "A request targeting a PHP endpoint with command-execution style parameters (cmd=, whoami, /uploads/...). Possible web shell interaction. Inspect the web root for unauthorized .php files, review the source IP's full request history, and check server-side process execution.\n",
+    "evidence": [
+      "192.0.2.44 - - [10/Mar/2026:09:05:07 +0000] \"POST /uploads/shell.php?cmd=whoami HTTP/1.1\" 200 116 \"-\" \"curl/7.88.1\""
+    ],
+    "time": "2026-03-10 09:05:07Z"
+  },
+  {
+    "rule_id": "web_shell_request",
+    "name": "Web shell-like request in web access logs",
+    "attack": "T1505.003",
+    "severity": "high",
+    "source": "apache",
+    "ts": 1773133517.0,
+    "entity": "192.0.2.44",
+    "count": 1,
+    "triage": "A request targeting a PHP endpoint with command-execution style parameters (cmd=, whoami, /uploads/...). Possible web shell interaction. Inspect the web root for unauthorized .php files, review the source IP's full request history, and check server-side process execution.\n",
+    "evidence": [
+      "192.0.2.44 - - [10/Mar/2026:09:05:17 +0000] \"GET /images/up.php?cmd=id HTTP/1.1\" 200 89 \"-\" \"curl/7.88.1\""
+    ],
+    "time": "2026-03-10 09:05:17Z"
+  },
+  {
+    "rule_id": "web_shell_request",
+    "name": "Web shell-like request in web access logs",
+    "attack": "T1505.003",
+    "severity": "high",
+    "source": "apache",
+    "ts": 1773133529.0,
+    "entity": "192.0.2.44",
+    "count": 1,
+    "triage": "A request targeting a PHP endpoint with command-execution style parameters (cmd=, whoami, /uploads/...). Possible web shell interaction. Inspect the web root for unauthorized .php files, review the source IP's full request history, and check server-side process execution.\n",
+    "evidence": [
+      "192.0.2.44 - - [10/Mar/2026:09:05:29 +0000] \"POST /wp-content/uploads/evil.php HTTP/1.1\" 200 100 \"-\" \"curl/7.88.1\""
+    ],
+    "time": "2026-03-10 09:05:29Z"
+  },
+  {
+    "rule_id": "office_spawns_shell",
+    "name": "Office application spawning a command shell",
+    "attack": "T1204.002",
+    "severity": "high",
+    "source": "sysmon",
+    "ts": 1773133560.0,
+    "entity": "LAB-WIN11",
+    "count": 1,
+    "triage": "A Microsoft Office application (Word/Excel/...) spawned a command interpreter (cmd/powershell/...). This is a hallmark of malicious document execution (user opened a weaponized attachment). Isolate the host, capture the parent document, and review what the child process did.\n",
+    "evidence": [
+      "{\"@timestamp\": \"2026-03-10T09:06:00.000Z\", \"host\": \"LAB-WIN11\", \"channel\": \"Microsoft-Windows-Sysmon/Operational\", \"EventID\": 1, \"Image\": \"C:\\\\Windows\\\\System32\\\\cmd.exe\", \"ParentImage\": \"C:\\\\Program Files\\\\Microsoft Office\\\\root\\\\Office16\\\\WINWORD.EXE\", \"CommandLine\": \"cmd.exe /c powershell -NoProfile -Command Write-Output lab\", \"User\": \"LAB-WIN11\\\\mohamed\"}"
+    ],
+    "time": "2026-03-10 09:06:00Z"
+  }
+]

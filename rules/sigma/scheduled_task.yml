@@ -1,0 +1,28 @@
+title: Scheduled Task Creation
+id: 7a1e0c10-0006-4a00-9a06-schtask000006
+status: experimental
+description: Detects scheduled task creation via the Security log (EventID 4698) or schtasks.exe process creation, a common persistence mechanism.
+references:
+  - https://attack.mitre.org/techniques/T1053/005/
+author: Mohamed Elansari
+date: 2026/03/10
+logsource:
+  product: windows
+detection:
+  selection_evt:
+    EventID: 4698
+  selection_proc:
+    Image|endswith: '\schtasks.exe'
+    CommandLine|contains: '/create'
+  condition: selection_evt or selection_proc
+fields:
+  - TaskName
+  - CommandLine
+  - SubjectUserName
+falsepositives:
+  - Software installers creating update tasks
+  - Administrator-created maintenance tasks
+level: medium
+tags:
+  - attack.persistence
+  - attack.t1053.005

@@ -1,0 +1,20 @@
+id: rdp_bruteforce
+name: RDP Brute Force (multiple failed Windows logons from one source)
+attack: T1110
+severity: high
+type: threshold
+group_by: [src_ip]
+count: 8
+window_seconds: 120
+match:
+  all:
+    - field: source
+      equals: win_security
+    - field: event_id
+      equals: 4625
+    - field: LogonType
+      in: [3, 10]
+triage: >
+  8+ failed Windows logons (EventID 4625, network/RDP logon type) from one
+  source IP within 2 minutes. Investigate the source, confirm no successful
+  4624 followed, and consider account lockout / NLA enforcement.

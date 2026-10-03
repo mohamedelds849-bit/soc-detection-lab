@@ -1,0 +1,36 @@
+title: Office Application Spawning A Command Shell
+id: 7a1e0c10-0011-4a00-9a11-officeshell011
+status: experimental
+description: Detects a Microsoft Office application spawning a command interpreter, a hallmark of malicious document execution.
+references:
+  - https://attack.mitre.org/techniques/T1204/002/
+author: Mohamed Elansari
+date: 2026/03/10
+logsource:
+  product: windows
+  category: process_creation
+detection:
+  selection:
+    ParentImage|endswith:
+      - '\WINWORD.EXE'
+      - '\EXCEL.EXE'
+      - '\POWERPNT.EXE'
+      - '\OUTLOOK.EXE'
+      - '\MSACCESS.EXE'
+    Image|endswith:
+      - '\cmd.exe'
+      - '\powershell.exe'
+      - '\wscript.exe'
+      - '\cscript.exe'
+      - '\mshta.exe'
+  condition: selection
+fields:
+  - ParentImage
+  - Image
+  - CommandLine
+falsepositives:
+  - Office add-ins or macros legitimately calling scripts (rare, should be baselined)
+level: high
+tags:
+  - attack.execution
+  - attack.t1204.002

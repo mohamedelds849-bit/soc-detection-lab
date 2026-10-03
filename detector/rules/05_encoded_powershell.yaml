@@ -1,0 +1,20 @@
+id: encoded_powershell
+name: Suspicious PowerShell encoded command
+attack: T1059.001
+severity: high
+type: single
+entity_field: host
+match:
+  all:
+    - field: source
+      equals: sysmon
+    - field: event_id
+      equals: 1
+    - field: image
+      icontains: powershell
+    - field: command_line
+      regex: "(?i)-enc(odedcommand)?\\s"
+triage: >
+  PowerShell launched with an -EncodedCommand / -enc argument. Attackers use
+  base64-encoded commands to hide intent. Decode the command, review the parent
+  process, and confirm whether it was an approved admin/automation action.

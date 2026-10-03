@@ -1,0 +1,176 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SOC Detection Lab - Triage Report</title>
+<style>
+  body { font-family: system-ui, Segoe UI, Arial, sans-serif; margin: 0; background:#0f1115; color:#e6e6e6; }
+  header { padding: 24px; background:#171a21; border-bottom:1px solid #2a2f3a; }
+  h1 { margin:0 0 4px; font-size:20px; }
+  .sub { color:#9aa4b2; font-size:13px; }
+  .cards { display:flex; gap:12px; padding:18px 24px; flex-wrap:wrap; }
+  .card { background:#171a21; border-left:4px solid; border-radius:8px; padding:12px 18px; min-width:90px; }
+  .card .n { font-size:26px; font-weight:700; }
+  .card .l { font-size:12px; text-transform:uppercase; color:#9aa4b2; }
+  table { border-collapse:collapse; width:calc(100% - 48px); margin:0 24px 40px; font-size:13px; }
+  th, td { text-align:left; padding:10px; border-bottom:1px solid #242a35; vertical-align:top; }
+  th { color:#9aa4b2; text-transform:uppercase; font-size:11px; letter-spacing:.04em; }
+  .sev { color:#fff; padding:2px 8px; border-radius:10px; font-size:11px; font-weight:700; }
+  .triage { color:#9aa4b2; font-size:12px; margin-top:4px; max-width:420px; }
+  .ev { font-family: ui-monospace, Consolas, monospace; font-size:11px; color:#c7d0dc; max-width:380px; word-break:break-all; }
+  code { background:#242a35; padding:1px 6px; border-radius:4px; }
+  .num { text-align:center; }
+  footer { padding:16px 24px; color:#6b7280; font-size:12px; }
+</style></head>
+<body>
+<header>
+  <h1>SOC Detection Lab &mdash; Offline Triage Report</h1>
+  <div class="sub">275 events analyzed &middot; 14 alerts &middot; synthetic lab data (defensive exercise)</div>
+</header>
+<div class="cards"><div class="card" style="border-color:#b00020"><div class="n">2</div><div class="l">critical</div></div><div class="card" style="border-color:#d9534f"><div class="n">9</div><div class="l">high</div></div><div class="card" style="border-color:#e0a800"><div class="n">3</div><div class="l">medium</div></div><div class="card" style="border-color:#5bc0de"><div class="n">0</div><div class="l">low</div></div></div>
+<table>
+  <thead><tr><th>Severity</th><th>Time (UTC)</th><th>Detection</th><th>ATT&amp;CK</th>
+  <th>Source</th><th>Entity</th><th>Hits</th><th>Evidence (sample)</th></tr></thead>
+  <tbody>
+        <tr>
+          <td><span class="sev" style="background:#b00020">CRITICAL</span></td>
+          <td>2026-03-10 08:36:00Z</td>
+          <td><b>Successful login after many failures (likely credential compromise)</b><div class="triage">A successful SSH login followed 8+ failed attempts from the SAME source IP within 3 minutes. Treat the account as potentially compromised: force password reset, inspect the session, and hunt for follow-on activity.</div></td>
+          <td><code>T1110</code></td>
+          <td>linux_auth</td>
+          <td>src_ip=203.0.113.66</td>
+          <td class="num">9</td>
+          <td class="ev">Mar 10 08:35:06 lab-web01 sshd[7222]: Failed password for mohamed from 203.0.113.66 port 49996 ssh2<br>Mar 10 08:35:09 lab-web01 sshd[6584]: Failed password for mohamed from 203.0.113.66 port 47816 ssh2<br>Mar 10 08:35:15 lab-web01 sshd[7038]: Failed password for mohamed from 203.0.113.66 port 44697 ssh2<br>Mar 10 08:35:19 lab-web01 sshd[5914]: Failed password for mohamed from 203.0.113.66 port 46975 ssh2</td>
+        </tr>
+        <tr>
+          <td><span class="sev" style="background:#b00020">CRITICAL</span></td>
+          <td>2026-03-10 09:04:00Z</td>
+          <td><b>Microsoft Defender real-time protection disabled</b><div class="triage">A command disabled Microsoft Defender real-time monitoring (Set-MpPreference -DisableRealtimeMonitoring $true). This is defense evasion and should almost never happen outside maintenance windows. Re-enable protection and investigate the account/host immediately.</div></td>
+          <td><code>T1562.001</code></td>
+          <td>sysmon</td>
+          <td>LAB-WIN11</td>
+          <td class="num">1</td>
+          <td class="ev">{&quot;@timestamp&quot;: &quot;2026-03-10T09:04:00.000Z&quot;, &quot;host&quot;: &quot;LAB-WIN11&quot;, &quot;channel&quot;: &quot;Microsoft-Windows-Sysmon/Operational&quot;, &quot;EventID&quot;: 1, &quot;Image&quot;: &quot;C:\\Windows\\System32</td>
+        </tr>
+        <tr>
+          <td><span class="sev" style="background:#d9534f">HIGH</span></td>
+          <td>2026-03-10 08:35:34Z</td>
+          <td><b>SSH Brute Force (multiple failed logins from one source)</b><div class="triage">8+ SSH authentication failures from a single source IP within 2 minutes. Check whether a successful login followed (credential compromise), block the source IP at the firewall, and review the targeted account.</div></td>
+          <td><code>T1110</code></td>
+          <td>linux_auth</td>
+          <td>src_ip=203.0.113.66</td>
+          <td class="num">8</td>
+          <td class="ev">Mar 10 08:35:06 lab-web01 sshd[7222]: Failed password for mohamed from 203.0.113.66 port 49996 ssh2<br>Mar 10 08:35:09 lab-web01 sshd[6584]: Failed password for mohamed from 203.0.113.66 port 47816 ssh2<br>Mar 10 08:35:15 lab-web01 sshd[7038]: Failed password for mohamed from 203.0.113.66 port 44697 ssh2<br>Mar 10 08:35:19 lab-web01 sshd[5914]: Failed password for mohamed from 203.0.113.66 port 46975 ssh2</td>
+        </tr>
+        <tr>
+          <td><span class="sev" style="background:#d9534f">HIGH</span></td>
+          <td>2026-03-10 08:50:34Z</td>
+          <td><b>RDP Brute Force (multiple failed Windows logons from one source)</b><div class="triage">8+ failed Windows logons (EventID 4625, network/RDP logon type) from one source IP within 2 minutes. Investigate the source, confirm no successful 4624 followed, and consider account lockout / NLA enforcement.</div></td>
+          <td><code>T1110</code></td>
+          <td>win_security</td>
+          <td>src_ip=198.51.100.77</td>
+          <td class="num">8</td>
+          <td class="ev">{&quot;@timestamp&quot;: &quot;2026-03-10T08:50:05.000Z&quot;, &quot;host&quot;: &quot;LAB-WIN11&quot;, &quot;channel&quot;: &quot;Security&quot;, &quot;EventID&quot;: 4625, &quot;TargetUserName&quot;: &quot;administrator&quot;, &quot;LogonType&quot;: 10, &quot;IpA<br>{&quot;@timestamp&quot;: &quot;2026-03-10T08:50:09.000Z&quot;, &quot;host&quot;: &quot;LAB-WIN11&quot;, &quot;channel&quot;: &quot;Security&quot;, &quot;EventID&quot;: 4625, &quot;TargetUserName&quot;: &quot;administrator&quot;, &quot;LogonType&quot;: 10, &quot;IpA<br>{&quot;@timestamp&quot;: &quot;2026-03-10T08:50:16.000Z&quot;, &quot;host&quot;: &quot;LAB-WIN11&quot;, &quot;channel&quot;: &quot;Security&quot;, &quot;EventID&quot;: 4625, &quot;TargetUserName&quot;: &quot;administrator&quot;, &quot;LogonType&quot;: 10, &quot;IpA<br>{&quot;@timestamp&quot;: &quot;2026-03-10T08:50:21.000Z&quot;, &quot;host&quot;: &quot;LAB-WIN11&quot;, &quot;channel&quot;: &quot;Security&quot;, &quot;EventID&quot;: 4625, &quot;TargetUserName&quot;: &quot;administrator&quot;, &quot;LogonType&quot;: 10, &quot;IpA</td>
+        </tr>
+        <tr>
+          <td><span class="sev" style="background:#d9534f">HIGH</span></td>
+          <td>2026-03-10 08:58:08Z</td>
+          <td><b>New local account added to Administrators</b><div class="triage">A local account was created (EventID 4720) and shortly after added to the Administrators group (EventID 4732) on the same host. Confirm this change was authorized; attackers create admin accounts for persistence and privilege.</div></td>
+          <td><code>T1136.001 / T1098</code></td>
+          <td>win_security</td>
+          <td>host=LAB-WIN11</td>
+          <td class="num">2</td>
+          <td class="ev">{&quot;@timestamp&quot;: &quot;2026-03-10T08:58:00.000Z&quot;, &quot;host&quot;: &quot;LAB-WIN11&quot;, &quot;channel&quot;: &quot;Security&quot;, &quot;EventID&quot;: 4720, &quot;TargetUserName&quot;: &quot;svc_helper&quot;, &quot;SubjectUserName&quot;: &quot;admi<br>{&quot;@timestamp&quot;: &quot;2026-03-10T08:58:08.000Z&quot;, &quot;host&quot;: &quot;LAB-WIN11&quot;, &quot;channel&quot;: &quot;Security&quot;, &quot;EventID&quot;: 4732, &quot;TargetUserName&quot;: &quot;svc_helper&quot;, &quot;GroupName&quot;: &quot;Administra</td>
+        </tr>
+        <tr>
+          <td><span class="sev" style="background:#d9534f">HIGH</span></td>
+          <td>2026-03-10 09:00:00Z</td>
+          <td><b>Suspicious PowerShell encoded command</b><div class="triage">PowerShell launched with an -EncodedCommand / -enc argument. Attackers use base64-encoded commands to hide intent. Decode the command, review the parent process, and confirm whether it was an approved admin/automation action.</div></td>
+          <td><code>T1059.001</code></td>
+          <td>sysmon</td>
+          <td>LAB-WIN11</td>
+          <td class="num">1</td>
+          <td class="ev">{&quot;@timestamp&quot;: &quot;2026-03-10T09:00:00.000Z&quot;, &quot;host&quot;: &quot;LAB-WIN11&quot;, &quot;channel&quot;: &quot;Microsoft-Windows-Sysmon/Operational&quot;, &quot;EventID&quot;: 1, &quot;Image&quot;: &quot;C:\\Windows\\System32</td>
+        </tr>
+        <tr>
+          <td><span class="sev" style="background:#d9534f">HIGH</span></td>
+          <td>2026-03-10 09:02:00Z</td>
+          <td><b>Windows Security event log cleared</b><div class="triage">The Windows Security audit log was cleared (EventID 1102). This is a classic anti-forensics / defense-evasion action. Correlate with the account that performed it and any activity immediately preceding the clear.</div></td>
+          <td><code>T1070.001</code></td>
+          <td>win_security</td>
+          <td>LAB-WIN11</td>
+          <td class="num">1</td>
+          <td class="ev">{&quot;@timestamp&quot;: &quot;2026-03-10T09:02:00.000Z&quot;, &quot;host&quot;: &quot;LAB-WIN11&quot;, &quot;channel&quot;: &quot;Security&quot;, &quot;EventID&quot;: 1102, &quot;SubjectUserName&quot;: &quot;administrator&quot;, &quot;Message&quot;: &quot;The audi</td>
+        </tr>
+        <tr>
+          <td><span class="sev" style="background:#d9534f">HIGH</span></td>
+          <td>2026-03-10 09:05:07Z</td>
+          <td><b>Web shell-like request in web access logs</b><div class="triage">A request targeting a PHP endpoint with command-execution style parameters (cmd=, whoami, /uploads/...). Possible web shell interaction. Inspect the web root for unauthorized .php files, review the source IP&#x27;s full request history, and check server-side process execution.</div></td>
+          <td><code>T1505.003</code></td>
+          <td>apache</td>
+          <td>192.0.2.44</td>
+          <td class="num">1</td>
+          <td class="ev">192.0.2.44 - - [10/Mar/2026:09:05:07 +0000] &quot;POST /uploads/shell.php?cmd=whoami HTTP/1.1&quot; 200 116 &quot;-&quot; &quot;curl/7.88.1&quot;</td>
+        </tr>
+        <tr>
+          <td><span class="sev" style="background:#d9534f">HIGH</span></td>
+          <td>2026-03-10 09:05:17Z</td>
+          <td><b>Web shell-like request in web access logs</b><div class="triage">A request targeting a PHP endpoint with command-execution style parameters (cmd=, whoami, /uploads/...). Possible web shell interaction. Inspect the web root for unauthorized .php files, review the source IP&#x27;s full request history, and check server-side process execution.</div></td>
+          <td><code>T1505.003</code></td>
+          <td>apache</td>
+          <td>192.0.2.44</td>
+          <td class="num">1</td>
+          <td class="ev">192.0.2.44 - - [10/Mar/2026:09:05:17 +0000] &quot;GET /images/up.php?cmd=id HTTP/1.1&quot; 200 89 &quot;-&quot; &quot;curl/7.88.1&quot;</td>
+        </tr>
+        <tr>
+          <td><span class="sev" style="background:#d9534f">HIGH</span></td>
+          <td>2026-03-10 09:05:29Z</td>
+          <td><b>Web shell-like request in web access logs</b><div class="triage">A request targeting a PHP endpoint with command-execution style parameters (cmd=, whoami, /uploads/...). Possible web shell interaction. Inspect the web root for unauthorized .php files, review the source IP&#x27;s full request history, and check server-side process execution.</div></td>
+          <td><code>T1505.003</code></td>
+          <td>apache</td>
+          <td>192.0.2.44</td>
+          <td class="num">1</td>
+          <td class="ev">192.0.2.44 - - [10/Mar/2026:09:05:29 +0000] &quot;POST /wp-content/uploads/evil.php HTTP/1.1&quot; 200 100 &quot;-&quot; &quot;curl/7.88.1&quot;</td>
+        </tr>
+        <tr>
+          <td><span class="sev" style="background:#d9534f">HIGH</span></td>
+          <td>2026-03-10 09:06:00Z</td>
+          <td><b>Office application spawning a command shell</b><div class="triage">A Microsoft Office application (Word/Excel/...) spawned a command interpreter (cmd/powershell/...). This is a hallmark of malicious document execution (user opened a weaponized attachment). Isolate the host, capture the parent document, and review what the child process did.</div></td>
+          <td><code>T1204.002</code></td>
+          <td>sysmon</td>
+          <td>LAB-WIN11</td>
+          <td class="num">1</td>
+          <td class="ev">{&quot;@timestamp&quot;: &quot;2026-03-10T09:06:00.000Z&quot;, &quot;host&quot;: &quot;LAB-WIN11&quot;, &quot;channel&quot;: &quot;Microsoft-Windows-Sysmon/Operational&quot;, &quot;EventID&quot;: 1, &quot;Image&quot;: &quot;C:\\Windows\\System32</td>
+        </tr>
+        <tr>
+          <td><span class="sev" style="background:#e0a800">MEDIUM</span></td>
+          <td>2026-03-10 09:01:00Z</td>
+          <td><b>Scheduled task created</b><div class="triage">A scheduled task was created (Security EventID 4698 or schtasks.exe execution). Scheduled tasks are a common persistence mechanism. Verify the task name, the action it runs, and the user that created it against change records.</div></td>
+          <td><code>T1053.005</code></td>
+          <td>win_security</td>
+          <td>LAB-WIN11</td>
+          <td class="num">1</td>
+          <td class="ev">{&quot;@timestamp&quot;: &quot;2026-03-10T09:01:00.000Z&quot;, &quot;host&quot;: &quot;LAB-WIN11&quot;, &quot;channel&quot;: &quot;Security&quot;, &quot;EventID&quot;: 4698, &quot;TaskName&quot;: &quot;\\Updater&quot;, &quot;SubjectUserName&quot;: &quot;mohamed&quot;}</td>
+        </tr>
+        <tr>
+          <td><span class="sev" style="background:#e0a800">MEDIUM</span></td>
+          <td>2026-03-10 09:01:01Z</td>
+          <td><b>Scheduled task created</b><div class="triage">A scheduled task was created (Security EventID 4698 or schtasks.exe execution). Scheduled tasks are a common persistence mechanism. Verify the task name, the action it runs, and the user that created it against change records.</div></td>
+          <td><code>T1053.005</code></td>
+          <td>sysmon</td>
+          <td>LAB-WIN11</td>
+          <td class="num">1</td>
+          <td class="ev">{&quot;@timestamp&quot;: &quot;2026-03-10T09:01:01.000Z&quot;, &quot;host&quot;: &quot;LAB-WIN11&quot;, &quot;channel&quot;: &quot;Microsoft-Windows-Sysmon/Operational&quot;, &quot;EventID&quot;: 1, &quot;Image&quot;: &quot;C:\\Windows\\System32</td>
+        </tr>
+        <tr>
+          <td><span class="sev" style="background:#e0a800">MEDIUM</span></td>
+          <td>2026-03-10 09:03:08Z</td>
+          <td><b>Port scan from a single source (many distinct destination ports)</b><div class="triage">A single source IP contacted 15+ distinct destination ports within 60 seconds (network connection EventID 3). This pattern indicates host/port scanning or service discovery. Identify the source and whether it is an authorized scanner.</div></td>
+          <td><code>T1046</code></td>
+          <td>sysmon</td>
+          <td>src_ip=203.0.113.90</td>
+          <td class="num">15</td>
+          <td class="ev">dest_port=21<br>dest_port=22<br>dest_port=23<br>dest_port=25</td>
+        </tr></tbody>
+</table>
+<footer>Generated by the offline detection engine. All data is synthetic; IPs use RFC 5737 / RFC 1918 ranges.</footer>
+</body></html>

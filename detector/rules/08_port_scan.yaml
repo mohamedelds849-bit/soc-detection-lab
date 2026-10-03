@@ -1,0 +1,19 @@
+id: port_scan
+name: Port scan from a single source (many distinct destination ports)
+attack: T1046
+severity: medium
+type: distinct
+group_by: [src_ip]
+distinct_field: dest_port
+count: 15
+window_seconds: 60
+match:
+  all:
+    - field: source
+      equals: sysmon
+    - field: event_id
+      equals: 3
+triage: >
+  A single source IP contacted 15+ distinct destination ports within 60 seconds
+  (network connection EventID 3). This pattern indicates host/port scanning or
+  service discovery. Identify the source and whether it is an authorized scanner.

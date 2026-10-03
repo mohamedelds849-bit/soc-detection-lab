@@ -1,0 +1,24 @@
+title: Web Shell-Like Request In Access Log
+id: 7a1e0c10-0010-4a00-9a10-webshell000010
+status: experimental
+description: Detects HTTP requests to PHP endpoints with command-execution style parameters or suspicious upload paths, indicating possible web shell interaction.
+references:
+  - https://attack.mitre.org/techniques/T1505/003/
+author: Mohamed Elansari
+date: 2026/03/10
+logsource:
+  category: webserver
+detection:
+  selection:
+    cs-uri-query|re: '(?i)(cmd=|exec=|eval|whoami|shell\.php|/uploads/.+\.php|up\.php|evil\.php)'
+  condition: selection
+fields:
+  - c-ip
+  - cs-uri-query
+  - cs-method
+falsepositives:
+  - Legitimate application that passes a parameter literally named cmd
+level: high
+tags:
+  - attack.persistence
+  - attack.t1505.003

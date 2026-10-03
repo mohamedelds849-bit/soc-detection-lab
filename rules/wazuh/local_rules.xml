@@ -1,0 +1,204 @@
+<!--
+  SOC Detection Lab - custom Wazuh rules
+  File: /var/ossec/etc/rules/local_rules.xml  (on the Wazuh manager)
+
+  These custom rules extend Wazuh's built-in ruleset with explicit MITRE
+  ATT&CK mapping for a portfolio lab. Custom rule IDs use the 100000+ range
+  (reserved for user rules). They reference standard decoders:
+    - sshd         : built-in sshd decoder (auth.log)
+    - windows      : windows_eventchannel decoder -> win.system.* / win.eventdata.*
+    - web-accesslog: built-in Apache/Nginx access-log decoder
+
+  All rules are DETECTION only. Validate with:
+    /var/ossec/bin/wazuh-logtest
+  and syntactically with xmllint (see rules/README).
+-->
+<group name="soc_lab,attack,">
+
+  <!-- =============================================================
+       T1110 - SSH brute force (Linux auth.log)
+       Built-in rule 5710/5760 = sshd authentication failure.
+       ============================================================= -->
+  <rule id="100110" level="10" frequency="8" timeframe="120">
+    <if_matched_sid>5710</if_matched_sid>
+    <same_source_ip />
+    <description>SSH brute force: 8+ failed logins from same source in 120s</description>
+    <mitre>
+      <id>T1110</id>
+    </mitre>
+    <group>authentication_failures,ssh,</group>
+  </rule>
+
+  <!-- T1110 - successful SSH login shortly after a brute-force burst -->
+  <rule id="100111" level="12" frequency="1" timeframe="180">
+    <if_matched_sid>100110</if_matched_sid>
+    <if_sid>5715</if_sid>
+    <same_source_ip />
+    <description>SSH successful login after brute force (possible credential compromise)</description>
+    <mitre>
+      <id>T1110</id>
+    </mitre>
+    <group>authentication_success,ssh,</group>
+  </rule>
+
+  <!-- =============================================================
+       T1110 - RDP / Windows logon brute force (EventID 4625)
+       ============================================================= -->
+  <rule id="100120" level="5">
+    <if_sid>60000</if_sid>
+    <field name="win.system.eventID">^4625$</field>
+    <description>Windows failed logon (EventID 4625)</description>
+    <options>no_full_log</options>
+    <group>authentication_failed,windows,</group>
+  </rule>
+
+  <rule id="100121" level="10" frequency="8" timeframe="120">
+    <if_matched_sid>100120</if_matched_sid>
+    <same_field>win.eventdata.ipAddress</same_field>
+    <description>RDP/Windows brute force: 8+ failed logons from same source in 120s</description>
+    <mitre>
+      <id>T1110</id>
+    </mitre>
+    <group>authentication_failures,windows,</group>
+  </rule>
+
+  <!-- =============================================================
+       T1136.001 / T1098 - new local user then added to Administrators
+       ============================================================= -->
+  <rule id="100130" level="6">
+    <if_sid>60000</if_sid>
+    <field name="win.system.eventID">^4720$</field>
+    <description>Windows local user account created (EventID 4720)</description>
+    <mitre>
+      <id>T1136.001</id>
+    </mitre>
+    <group>account_changes,windows,</group>
+  </rule>
+
+  <rule id="100131" level="10" frequency="1" timeframe="120">
+    <if_sid>60000</if_sid>
+    <field name="win.system.eventID">^4732$</field>
+    <field name="win.eventdata.targetUserName">Administrators</field>
+    <if_matched_sid>100130</if_matched_sid>
+    <description>New local account added to Administrators group (persistence/privilege)</description>
+    <mitre>
+      <id>T1098</id>
+      <id>T1136.001</id>
+    </mitre>
+    <group>account_changes,windows,</group>
+  </rule>
+
+  <!-- =============================================================
+       T1059.001 - suspicious PowerShell encoded command (Sysmon EID 1)
+       ============================================================= -->
+  <rule id="100140" level="10">
+    <if_sid>61603</if_sid>
+    <field name="win.eventdata.image">(?i)powershell\.exe</field>
+    <field name="win.eventdata.commandLine">(?i)-enc(odedcommand)?\s</field>
+    <description>Suspicious PowerShell encoded command (-EncodedCommand)</description>
+    <mitre>
+      <id>T1059.001</id>
+    </mitre>
+    <group>powershell,sysmon,</group>
+  </rule>
+
+  <!-- =============================================================
+       T1053.005 - scheduled task created (Security 4698 or schtasks.exe)
+       ============================================================= -->
+  <rule id="100150" level="7">
+    <if_sid>60000</if_sid>
+    <field name="win.system.eventID">^4698$</field>
+    <description>Scheduled task created (EventID 4698)</description>
+    <mitre>
+      <id>T1053.005</id>
+    </mitre>
+    <group>persistence,windows,</group>
+  </rule>
+
+  <rule id="100151" level="7">
+    <if_sid>61603</if_sid>
+    <field name="win.eventdata.image">(?i)schtasks\.exe</field>
+    <field name="win.eventdata.commandLine">(?i)/create</field>
+    <description>Scheduled task created via schtasks.exe</description>
+    <mitre>
+      <id>T1053.005</id>
+    </mitre>
+    <group>persistence,sysmon,</group>
+  </rule>
+
+  <!-- =============================================================
+       T1070.001 - Windows event log cleared (EventID 1102)
+       ============================================================= -->
+  <rule id="100160" level="12">
+    <if_sid>60000</if_sid>
+    <field name="win.system.eventID">^1102$</field>
+    <description>Windows Security audit log cleared (anti-forensics)</description>
+    <mitre>
+      <id>T1070.001</id>
+    </mitre>
+    <group>defense_evasion,windows,</group>
+  </rule>
+
+  <!-- =============================================================
+       T1046 - port scan from single source (many network connections)
+       Sysmon EID 3 = network connection. Correlate frequency per source.
+       ============================================================= -->
+  <rule id="100170" level="3">
+    <if_sid>61605</if_sid>
+    <description>Sysmon network connection (EventID 3)</description>
+    <options>no_full_log</options>
+    <group>network,sysmon,</group>
+  </rule>
+
+  <rule id="100171" level="10" frequency="15" timeframe="60">
+    <if_matched_sid>100170</if_matched_sid>
+    <same_field>win.eventdata.sourceIp</same_field>
+    <description>Port scan: 15+ network connections from same source in 60s</description>
+    <mitre>
+      <id>T1046</id>
+    </mitre>
+    <group>discovery,sysmon,</group>
+  </rule>
+
+  <!-- =============================================================
+       T1562.001 - Microsoft Defender real-time protection disabled
+       ============================================================= -->
+  <rule id="100180" level="12">
+    <if_sid>61603</if_sid>
+    <field name="win.eventdata.commandLine">(?i)DisableRealtimeMonitoring</field>
+    <description>Microsoft Defender real-time monitoring disabled (defense evasion)</description>
+    <mitre>
+      <id>T1562.001</id>
+    </mitre>
+    <group>defense_evasion,sysmon,</group>
+  </rule>
+
+  <!-- =============================================================
+       T1505.003 - web shell-like request (Apache/Nginx access log)
+       Built-in decoder web-accesslog populates url/id fields.
+       ============================================================= -->
+  <rule id="100190" level="10">
+    <if_sid>31100</if_sid>
+    <url>(?i)(cmd=|exec=|eval|whoami|shell\.php|/uploads/.+\.php|up\.php|evil\.php)</url>
+    <description>Possible web shell request (command-exec parameters on PHP endpoint)</description>
+    <mitre>
+      <id>T1505.003</id>
+    </mitre>
+    <group>web,attack,</group>
+  </rule>
+
+  <!-- =============================================================
+       T1204.002 - Office application spawning a command shell (Sysmon EID 1)
+       ============================================================= -->
+  <rule id="100200" level="10">
+    <if_sid>61603</if_sid>
+    <field name="win.eventdata.parentImage">(?i)(winword|excel|powerpnt|outlook|msaccess)\.exe</field>
+    <field name="win.eventdata.image">(?i)(cmd|powershell|wscript|cscript|mshta)\.exe</field>
+    <description>Office application spawned a command interpreter (malicious document)</description>
+    <mitre>
+      <id>T1204.002</id>
+    </mitre>
+    <group>execution,sysmon,</group>
+  </rule>
+
+</group>

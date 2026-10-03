@@ -1,0 +1,21 @@
+id: office_spawns_shell
+name: Office application spawning a command shell
+attack: T1204.002
+severity: high
+type: single
+entity_field: host
+match:
+  all:
+    - field: source
+      equals: sysmon
+    - field: event_id
+      equals: 1
+    - field: parent_image
+      regex: "(?i)(WINWORD|EXCEL|POWERPNT|OUTLOOK|MSACCESS)\\.EXE"
+    - field: image
+      regex: "(?i)(cmd|powershell|wscript|cscript|mshta)\\.exe"
+triage: >
+  A Microsoft Office application (Word/Excel/...) spawned a command interpreter
+  (cmd/powershell/...). This is a hallmark of malicious document execution
+  (user opened a weaponized attachment). Isolate the host, capture the parent
+  document, and review what the child process did.

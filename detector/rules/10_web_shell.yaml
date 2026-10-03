@@ -1,0 +1,17 @@
+id: web_shell_request
+name: Web shell-like request in web access logs
+attack: T1505.003
+severity: high
+type: single
+entity_field: src_ip
+match:
+  all:
+    - field: source
+      equals: apache
+    - field: url
+      regex: "(?i)(cmd=|exec=|eval|whoami|shell\\.php|/uploads/.*\\.php|up\\.php|evil\\.php)"
+triage: >
+  A request targeting a PHP endpoint with command-execution style parameters
+  (cmd=, whoami, /uploads/...). Possible web shell interaction. Inspect the web
+  root for unauthorized .php files, review the source IP's full request history,
+  and check server-side process execution.

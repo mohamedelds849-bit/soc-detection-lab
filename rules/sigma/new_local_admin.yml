@@ -1,0 +1,29 @@
+title: New Local Account Added To Administrators
+id: 7a1e0c10-0004-4a00-9a04-newadmin00004
+status: experimental
+description: Detects a local account being added to the Administrators group (EventID 4732). Correlate with account creation (4720) for new-admin persistence.
+references:
+  - https://attack.mitre.org/techniques/T1136/001/
+  - https://attack.mitre.org/techniques/T1098/
+author: Mohamed Elansari
+date: 2026/03/10
+logsource:
+  product: windows
+  service: security
+detection:
+  selection:
+    EventID: 4732
+    GroupName: 'Administrators'
+  condition: selection
+fields:
+  - TargetUserName
+  - SubjectUserName
+  - GroupName
+falsepositives:
+  - Authorized IT onboarding of a new administrator
+level: high
+tags:
+  - attack.persistence
+  - attack.privilege-escalation
+  - attack.t1136.001
+  - attack.t1098

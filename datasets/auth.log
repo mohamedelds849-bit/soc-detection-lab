@@ -1,0 +1,65 @@
+Mar 10 08:03:08 lab-web01 sshd[3714]: Accepted password for svc_report from 198.51.100.25 port 51988 ssh2
+Mar 10 08:05:03 lab-web01 sshd[6040]: Accepted password for backup from 198.51.100.25 port 51791 ssh2
+Mar 10 08:08:31 lab-web01 sshd[7532]: Failed password for sara from 192.0.2.5 port 51956 ssh2
+Mar 10 08:09:17 lab-web01 sshd[7608]: Accepted password for svc_report from 198.51.100.25 port 51406 ssh2
+Mar 10 08:13:11 lab-web01 sshd[2942]: Accepted password for yassine from 198.51.100.25 port 40584 ssh2
+Mar 10 08:14:24 lab-web01 sshd[5339]: Accepted password for yassine from 198.51.100.25 port 59811 ssh2
+Mar 10 08:17:14 lab-web01 sshd[1718]: Accepted password for mohamed from 198.51.100.25 port 57217 ssh2
+Mar 10 08:17:14 lab-web01 sudo: mohamed : TTY=pts/0 ; PWD=/home/mohamed ; USER=root ; COMMAND=/usr/bin/apt update
+Mar 10 08:20:31 lab-web01 sshd[4228]: Accepted password for svc_report from 10.10.0.5 port 40561 ssh2
+Mar 10 08:20:31 lab-web01 sudo: svc_report : TTY=pts/0 ; PWD=/home/svc_report ; USER=root ; COMMAND=/usr/bin/apt update
+Mar 10 08:21:51 lab-web01 sshd[6465]: Accepted password for backup from 198.51.100.25 port 58634 ssh2
+Mar 10 08:25:43 lab-web01 sshd[6034]: Accepted password for sara from 203.0.113.10 port 41501 ssh2
+Mar 10 08:27:07 lab-web01 sshd[4030]: Accepted password for svc_report from 10.10.0.6 port 57336 ssh2
+Mar 10 08:27:49 lab-web01 sshd[1402]: Accepted password for backup from 198.51.100.25 port 59128 ssh2
+Mar 10 08:30:23 lab-web01 sshd[5215]: Accepted password for svc_report from 192.0.2.5 port 51554 ssh2
+Mar 10 08:30:23 lab-web01 sudo: svc_report : TTY=pts/0 ; PWD=/home/svc_report ; USER=root ; COMMAND=/usr/bin/apt update
+Mar 10 08:33:54 lab-web01 sshd[2284]: Accepted password for sara from 10.10.0.5 port 45574 ssh2
+Mar 10 08:33:54 lab-web01 sudo: sara : TTY=pts/0 ; PWD=/home/sara ; USER=root ; COMMAND=/usr/bin/apt update
+Mar 10 08:35:06 lab-web01 sshd[7222]: Failed password for mohamed from 203.0.113.66 port 49996 ssh2
+Mar 10 08:35:09 lab-web01 sshd[6584]: Failed password for mohamed from 203.0.113.66 port 47816 ssh2
+Mar 10 08:35:15 lab-web01 sshd[7038]: Failed password for mohamed from 203.0.113.66 port 44697 ssh2
+Mar 10 08:35:19 lab-web01 sshd[5914]: Failed password for mohamed from 203.0.113.66 port 46975 ssh2
+Mar 10 08:35:22 lab-web01 sshd[3230]: Failed password for mohamed from 203.0.113.66 port 51144 ssh2
+Mar 10 08:35:26 lab-web01 sshd[8512]: Failed password for mohamed from 203.0.113.66 port 57782 ssh2
+Mar 10 08:35:31 lab-web01 sshd[9291]: Failed password for mohamed from 203.0.113.66 port 42273 ssh2
+Mar 10 08:35:34 lab-web01 sshd[5509]: Failed password for mohamed from 203.0.113.66 port 46689 ssh2
+Mar 10 08:35:37 lab-web01 sshd[5570]: Failed password for mohamed from 203.0.113.66 port 53228 ssh2
+Mar 10 08:35:40 lab-web01 sshd[4624]: Failed password for mohamed from 203.0.113.66 port 51778 ssh2
+Mar 10 08:35:43 lab-web01 sshd[4554]: Failed password for mohamed from 203.0.113.66 port 53386 ssh2
+Mar 10 08:35:48 lab-web01 sshd[8108]: Failed password for mohamed from 203.0.113.66 port 42177 ssh2
+Mar 10 08:35:51 lab-web01 sshd[3656]: Failed password for mohamed from 203.0.113.66 port 54591 ssh2
+Mar 10 08:35:56 lab-web01 sshd[1115]: Failed password for mohamed from 203.0.113.66 port 42039 ssh2
+Mar 10 08:36:00 lab-web01 sshd[1378]: Accepted password for mohamed from 203.0.113.66 port 59731 ssh2
+Mar 10 08:36:42 lab-web01 sshd[6721]: Failed password for yassine from 10.10.0.5 port 58171 ssh2
+Mar 10 08:39:47 lab-web01 sshd[3548]: Accepted password for mohamed from 192.168.56.20 port 49420 ssh2
+Mar 10 08:39:47 lab-web01 sudo: mohamed : TTY=pts/0 ; PWD=/home/mohamed ; USER=root ; COMMAND=/usr/bin/apt update
+Mar 10 08:42:15 lab-web01 sshd[5319]: Accepted password for yassine from 192.168.56.20 port 42241 ssh2
+Mar 10 08:43:34 lab-web01 sshd[5143]: Accepted password for sara from 192.168.56.20 port 52840 ssh2
+Mar 10 08:43:34 lab-web01 sudo: sara : TTY=pts/0 ; PWD=/home/sara ; USER=root ; COMMAND=/usr/bin/apt update
+Mar 10 08:47:06 lab-web01 sshd[7840]: Accepted password for yassine from 192.168.56.20 port 46374 ssh2
+Mar 10 08:50:39 lab-web01 sshd[9846]: Failed password for backup from 203.0.113.10 port 50540 ssh2
+Mar 10 08:53:42 lab-web01 sshd[9947]: Accepted password for sara from 198.51.100.25 port 54335 ssh2
+Mar 10 08:55:55 lab-web01 sshd[7210]: Accepted password for yassine from 10.10.0.6 port 50003 ssh2
+Mar 10 08:58:02 lab-web01 sshd[4878]: Accepted password for sara from 203.0.113.10 port 49031 ssh2
+Mar 10 09:01:33 lab-web01 sshd[5509]: Accepted password for mohamed from 192.168.56.20 port 40094 ssh2
+Mar 10 09:05:32 lab-web01 sshd[9262]: Failed password for svc_report from 192.168.56.20 port 44572 ssh2
+Mar 10 09:08:30 lab-web01 sshd[4981]: Failed password for backup from 10.10.0.6 port 54559 ssh2
+Mar 10 09:10:17 lab-web01 sshd[6380]: Accepted password for mohamed from 192.168.56.20 port 46962 ssh2
+Mar 10 09:13:15 lab-web01 sshd[1708]: Accepted password for mohamed from 198.51.100.25 port 44998 ssh2
+Mar 10 09:15:52 lab-web01 sshd[2316]: Failed password for yassine from 10.10.0.5 port 44872 ssh2
+Mar 10 09:19:08 lab-web01 sshd[1341]: Accepted password for svc_report from 192.168.56.20 port 54993 ssh2
+Mar 10 09:19:08 lab-web01 sudo: svc_report : TTY=pts/0 ; PWD=/home/svc_report ; USER=root ; COMMAND=/usr/bin/apt update
+Mar 10 09:20:27 lab-web01 sshd[8219]: Accepted password for sara from 10.10.0.6 port 47301 ssh2
+Mar 10 09:24:23 lab-web01 sshd[1410]: Accepted password for backup from 198.51.100.25 port 50056 ssh2
+Mar 10 09:26:23 lab-web01 sshd[1251]: Failed password for mohamed from 192.0.2.5 port 45567 ssh2
+Mar 10 09:28:09 lab-web01 sshd[3612]: Failed password for sara from 10.10.0.6 port 46450 ssh2
+Mar 10 09:30:59 lab-web01 sshd[1964]: Accepted password for backup from 203.0.113.10 port 59518 ssh2
+Mar 10 09:34:23 lab-web01 sshd[4181]: Accepted password for backup from 10.10.0.12 port 58074 ssh2
+Mar 10 09:34:23 lab-web01 sudo: backup : TTY=pts/0 ; PWD=/home/backup ; USER=root ; COMMAND=/usr/bin/apt update
+Mar 10 09:35:10 lab-web01 sshd[1453]: Accepted password for sara from 10.10.0.12 port 48946 ssh2
+Mar 10 09:35:10 lab-web01 sudo: sara : TTY=pts/0 ; PWD=/home/sara ; USER=root ; COMMAND=/usr/bin/apt update
+Mar 10 09:39:06 lab-web01 sshd[2885]: Accepted password for sara from 10.10.0.5 port 57690 ssh2
+Mar 10 09:41:17 lab-web01 sshd[3554]: Accepted password for yassine from 203.0.113.10 port 58421 ssh2
+Mar 10 09:41:48 lab-web01 sshd[6282]: Accepted password for backup from 10.10.0.12 port 55932 ssh2
+Mar 10 09:41:48 lab-web01 sudo: backup : TTY=pts/0 ; PWD=/home/backup ; USER=root ; COMMAND=/usr/bin/apt update

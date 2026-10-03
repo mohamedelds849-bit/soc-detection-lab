@@ -1,0 +1,27 @@
+title: Successful Login After Many Failures
+id: 7a1e0c10-0003-4a00-9a03-successafter03
+status: experimental
+description: Detects a successful SSH login from a source IP that produced many failed logins just before, indicating likely credential compromise via brute force.
+references:
+  - https://attack.mitre.org/techniques/T1110/
+author: Mohamed Elansari
+date: 2026/03/10
+logsource:
+  product: linux
+  service: sshd
+detection:
+  failures:
+    message|contains: 'Failed password for'
+  success:
+    message|contains: 'Accepted password for'
+  timeframe: 3m
+  condition: failures | count() by src_ip >= 8 and success
+fields:
+  - src_ip
+  - user
+falsepositives:
+  - A legitimate user who mistyped several times then logged in
+level: critical
+tags:
+  - attack.credential-access
+  - attack.t1110

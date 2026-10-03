@@ -1,0 +1,26 @@
+title: SSH Brute Force From Single Source
+id: 7a1e0c10-0001-4a00-9a01-ssh0bruteforce1
+status: experimental
+description: Detects 8 or more failed SSH password authentications from one source IP within a short window.
+references:
+  - https://attack.mitre.org/techniques/T1110/
+author: Mohamed Elansari
+date: 2026/03/10
+logsource:
+  product: linux
+  service: sshd
+detection:
+  selection:
+    message|contains: 'Failed password for'
+  timeframe: 2m
+  condition: selection | count() by src_ip >= 8
+fields:
+  - src_ip
+  - user
+falsepositives:
+  - Misconfigured automation using the wrong credentials
+  - A user repeatedly fat-fingering a password
+level: high
+tags:
+  - attack.credential-access
+  - attack.t1110

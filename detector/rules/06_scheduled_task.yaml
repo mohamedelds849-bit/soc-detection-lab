@@ -1,0 +1,16 @@
+id: scheduled_task_creation
+name: Scheduled task created
+attack: T1053.005
+severity: medium
+type: single
+entity_field: host
+match:
+  any:
+    - field: event_id
+      equals: 4698
+    - field: image
+      icontains: schtasks.exe
+triage: >
+  A scheduled task was created (Security EventID 4698 or schtasks.exe execution).
+  Scheduled tasks are a common persistence mechanism. Verify the task name, the
+  action it runs, and the user that created it against change records.

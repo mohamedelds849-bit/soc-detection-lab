@@ -1,0 +1,28 @@
+title: Port Scan From Single Source
+id: 7a1e0c10-0008-4a00-9a08-portscan000008
+status: experimental
+description: Detects a single source IP connecting to many distinct destination ports in a short window (Sysmon EventID 3), indicating port/service scanning.
+references:
+  - https://attack.mitre.org/techniques/T1046/
+author: Mohamed Elansari
+date: 2026/03/10
+logsource:
+  product: windows
+  service: sysmon
+  category: network_connection
+detection:
+  selection:
+    EventID: 3
+  timeframe: 1m
+  condition: selection | count(DestinationPort) by SourceIp >= 15
+fields:
+  - SourceIp
+  - DestinationIp
+  - DestinationPort
+falsepositives:
+  - Authorized vulnerability scanner
+  - Monitoring/health-check tooling
+level: medium
+tags:
+  - attack.discovery
+  - attack.t1046

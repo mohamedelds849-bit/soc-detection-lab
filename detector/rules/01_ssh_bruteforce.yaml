@@ -1,0 +1,18 @@
+id: ssh_bruteforce
+name: SSH Brute Force (multiple failed logins from one source)
+attack: T1110
+severity: high
+type: threshold
+group_by: [src_ip]
+count: 8
+window_seconds: 120
+match:
+  all:
+    - field: source
+      equals: linux_auth
+    - field: event_type
+      equals: ssh_auth_failure
+triage: >
+  8+ SSH authentication failures from a single source IP within 2 minutes.
+  Check whether a successful login followed (credential compromise), block the
+  source IP at the firewall, and review the targeted account.

@@ -1,0 +1,19 @@
+id: defender_disabled
+name: Microsoft Defender real-time protection disabled
+attack: T1562.001
+severity: critical
+type: single
+entity_field: host
+match:
+  all:
+    - field: source
+      equals: sysmon
+    - field: event_id
+      equals: 1
+    - field: command_line
+      icontains: DisableRealtimeMonitoring
+triage: >
+  A command disabled Microsoft Defender real-time monitoring
+  (Set-MpPreference -DisableRealtimeMonitoring $true). This is defense evasion
+  and should almost never happen outside maintenance windows. Re-enable
+  protection and investigate the account/host immediately.
