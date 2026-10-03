@@ -318,7 +318,9 @@
   </rule>
 
   <rule id="100192" level="10">
-    <if_sid>31100</if_sid>
+    <!-- 31108 (level 0, "simple queries") is evaluated before custom siblings and captures
+         successful requests WITHOUT a query string, so attach to it as well (same pattern as Wazuh's own 31103). -->
+    <if_sid>31100,31108</if_sid>
     <protocol>POST</protocol>
     <id type="pcre2">^20[0124]$</id>
     <url type="pcre2">(?i)/(?:uploads?|files|media|tmp)/(?:[^?#]*/)?[^/?#]+\.(?:php\d?|phtml|phar)(?:\?|$)</url>
